@@ -1,0 +1,413 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#14532d">
+<title>MUDEO - Trésorerie</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#f1f5f1;
+ color:#1f2937;
+}
+header{
+ background:#14532d;
+ color:white;
+ padding:22px 16px;
+ text-align:center;
+}
+header h1{margin:0;font-size:24px}
+header p{margin:7px 0 0;font-size:14px}
+nav{
+ display:flex;
+ overflow-x:auto;
+ background:white;
+ border-bottom:1px solid #ddd;
+}
+nav button{
+ border:0;
+ background:white;
+ padding:15px 13px;
+ font-weight:bold;
+ white-space:nowrap;
+ color:#14532d;
+}
+nav button.active{background:#dcfce7}
+main{padding:15px;max-width:850px;margin:auto}
+.page{display:none}
+.page.active{display:block}
+.card{
+ background:white;
+ padding:17px;
+ border-radius:12px;
+ margin-bottom:15px;
+ box-shadow:0 2px 7px #00000010;
+}
+h2{font-size:20px;color:#14532d}
+.stat{
+ background:#dcfce7;
+ padding:15px;
+ border-radius:10px;
+ margin:8px 0;
+}
+.stat strong{display:block;font-size:23px;margin-top:7px}
+input,select{
+ width:100%;
+ padding:13px;
+ margin:7px 0 13px;
+ border:1px solid #ccc;
+ border-radius:7px;
+ font-size:16px;
+ background:white;
+}
+label{font-weight:bold;font-size:14px}
+.action{
+ width:100%;
+ padding:13px;
+ border:0;
+ border-radius:7px;
+ background:#15803d;
+ color:white;
+ font-weight:bold;
+ font-size:16px;
+ margin-top:7px;
+}
+.secondary{background:#475569}
+.danger{background:#b91c1c}
+.item{
+ padding:12px 0;
+ border-bottom:1px solid #eee;
+ line-height:1.6;
+}
+.status{font-weight:bold;color:#b45309}
+.valid{color:#15803d}
+.small{font-size:13px;color:#64748b}
+footer{text-align:center;padding:25px;color:#64748b}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>MUDEO – TRÉSORERIE</h1>
+<p>Mutuelle de Développement de Ouétomba</p>
+<p>Ensemble pour construire Ouétomba</p>
+</header>
+
+<nav>
+<button class="active" onclick="showPage('home',this)">Accueil</button>
+<button onclick="showPage('members',this)">Membres</button>
+<button onclick="showPage('payments',this)">Paiements</button>
+<button onclick="showPage('validation',this)">Validation</button>
+<button onclick="showPage('reports',this)">Rapports</button>
+</nav>
+
+<main>
+
+<section id="home" class="page active">
+<div class="card">
+<h2>Tableau de bord</h2>
+<div class="stat">Nombre de membres
+<strong id="totalMembers">0</strong></div>
+<div class="stat">Recettes validées
+<strong id="totalRevenue">0 FCFA</strong></div>
+<div class="stat">Paiements en attente
+<strong id="pendingPayments">0</strong></div>
+<div class="stat">Cotisation mensuelle
+<strong>5 000 FCFA</strong></div>
+</div>
+<div class="card">
+<h2>Bienvenue dans MUDEO</h2>
+<p>Cette application permet de suivre les membres, les cotisations et les recettes de la mutuelle.</p>
+<p class="small">Les paiements doivent être validés par le trésorier avant d'être comptabilisés.</p>
+</div>
+</section>
+
+<section id="members" class="page">
+<div class="card">
+<h2>Enregistrer un membre</h2>
+<form id="memberForm">
+<label>Nom et prénoms *</label>
+<input id="memberName" required placeholder="Nom complet">
+
+<label>Numéro de téléphone *</label>
+<input id="memberPhone" required type="tel" placeholder="Téléphone">
+
+<label>Lieu de résidence</label>
+<input id="memberPlace" placeholder="Village ou ville">
+
+<button class="action" type="submit">Ajouter le membre</button>
+</form>
+</div>
+<div class="card">
+<h2>Liste des membres</h2>
+<input id="memberSearch" placeholder="Rechercher un membre..." oninput="renderMembers()">
+<div id="memberList"></div>
+</div>
+</section>
+
+<section id="payments" class="page">
+<div class="card">
+<h2>Enregistrer un paiement</h2>
+<form id="paymentForm">
+
+<label>Membre *</label>
+<select id="paymentMember" required>
+<option value="">Choisir un membre</option>
+</select>
+
+<label>Mois de cotisation *</label>
+<input id="paymentMonth" type="month" required>
+
+<label>Montant (FCFA) *</label>
+<input id="paymentAmount" type="number" min="1" value="5000" required>
+
+<label>Moyen de paiement *</label>
+<select id="paymentMethod" required>
+<option value="">Choisir</option>
+<option>Espèces</option>
+<option>Mobile Money</option>
+<option>Virement bancaire</option>
+<option>Autre</option>
+</select>
+
+<button class="action" type="submit">Enregistrer le paiement</button>
+</form>
+<p class="small">Le paiement sera en attente jusqu'à sa validation par le trésorier.</p>
+</div>
+</section>
+
+<section id="validation" class="page">
+<div class="card">
+<h2>Validation des paiements</h2>
+<p class="small">Réservé au trésorier. Dans cette première version, cet écran n'est pas encore protégé par un compte utilisateur.</p>
+<div id="paymentList"></div>
+</div>
+</section>
+
+<section id="reports" class="page">
+<div class="card">
+<h2>Rapport de trésorerie</h2>
+<div class="stat">Total encaissé
+<strong id="reportRevenue">0 FCFA</strong></div>
+<div class="stat">Nombre de paiements validés
+<strong id="validatedCount">0</strong></div>
+<div class="stat">Montant en attente
+<strong id="waitingAmount">0 FCFA</strong></div>
+<button class="action" onclick="exportCSV()">Exporter les paiements (CSV)</button>
+</div>
+</section>
+
+</main>
+
+<footer>
+MUDEO – Trésorerie<br>
+Mutuelle de Développement de Ouétomba
+</footer>
+
+<script>
+const KEY = "mudeo_tresorerie_v1";
+
+let data = JSON.parse(localStorage.getItem(KEY) || '{"members":[],"payments":[]}');
+
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(data));
+ updateDashboard();
+ renderMembers();
+ renderPaymentForm();
+ renderPayments();
+}
+
+function money(n){
+ return Number(n||0).toLocaleString("fr-FR")+" FCFA";
+}
+
+function showPage(id,button){
+ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+ document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ button.classList.add("active");
+ if(id==="validation") renderPayments();
+ if(id==="members") renderMembers();
+}
+
+document.getElementById("memberForm").addEventListener("submit",function(e){
+ e.preventDefault();
+
+ const name=document.getElementById("memberName").value.trim();
+ const phone=document.getElementById("memberPhone").value.trim();
+
+ if(data.members.some(m=>m.phone===phone)){
+  alert("Ce numéro de téléphone existe déjà.");
+  return;
+ }
+
+ data.members.push({
+  id:Date.now(),
+  name,
+  phone,
+  place:document.getElementById("memberPlace").value.trim()
+ });
+
+ this.reset();
+ save();
+ alert("Membre enregistré avec succès !");
+});
+
+function renderMembers(){
+ const search=document.getElementById("memberSearch").value.toLowerCase();
+ const list=document.getElementById("memberList");
+
+ const members=data.members.filter(m=>
+  m.name.toLowerCase().includes(search) || m.phone.includes(search)
+ );
+
+ list.innerHTML=members.length ? members.map(m=>`
+ <div class="item">
+ <strong>${escapeHTML(m.name)}</strong><br>
+ Téléphone : ${escapeHTML(m.phone)}<br>
+ Résidence : ${escapeHTML(m.place||"-")}<br>
+ <button class="action danger" onclick="deleteMember(${m.id})">Supprimer</button>
+ </div>`).join("") : "<p>Aucun membre enregistré.</p>";
+}
+
+function deleteMember(id){
+ if(!confirm("Supprimer ce membre ?")) return;
+ if(data.payments.some(p=>p.memberId===id)){
+  alert("Ce membre possède des paiements. Suppression impossible.");
+  return;
+ }
+ data.members=data.members.filter(m=>m.id!==id);
+ save();
+}
+
+function renderPaymentForm(){
+ const select=document.getElementById("paymentMember");
+ const current=select.value;
+ select.innerHTML='<option value="">Choisir un membre</option>';
+ data.members.forEach(m=>{
+  select.innerHTML+=`<option value="${m.id}">${escapeHTML(m.name)}</option>`;
+ });
+ if(data.members.some(m=>String(m.id)===current)) select.value=current;
+}
+
+document.getElementById("paymentForm").addEventListener("submit",function(e){
+ e.preventDefault();
+
+ const memberId=Number(document.getElementById("paymentMember").value);
+ const month=document.getElementById("paymentMonth").value;
+ const amount=Number(document.getElementById("paymentAmount").value);
+ const method=document.getElementById("paymentMethod").value;
+
+ if(!data.members.some(m=>m.id===memberId)){
+  alert("Veuillez choisir un membre.");
+  return;
+ }
+
+ if(!month || amount<=0 || !method) return;
+
+ data.payments.push({
+  id:Date.now(),
+  memberId,
+  month,
+  amount,
+  method,
+  date:new Date().toISOString(),
+  status:"En attente"
+ });
+
+ this.reset();
+ save();
+ alert("Paiement enregistré. En attente de validation du trésorier.");
+});
+
+function renderPayments(){
+ const list=document.getElementById("paymentList");
+
+ if(!data.payments.length){
+  list.innerHTML="<p>Aucun paiement enregistré.</p>";
+  return;
+ }
+
+ list.innerHTML=[...data.payments].reverse().map(p=>{
+  const m=data.members.find(x=>x.id===p.memberId);
+  return `<div class="item">
+  <strong>${escapeHTML(m?m.name:"Membre inconnu")}</strong><br>
+  Mois : ${escapeHTML(p.month)}<br>
+  Montant : ${money(p.amount)}<br>
+  Moyen : ${escapeHTML(p.method)}<br>
+  Statut : <span class="${p.status==="Validé"?"valid":"status"}">${p.status}</span><br>
+  ${p.status==="En attente"?
+  `<button class="action" onclick="validatePayment(${p.id})">Valider le paiement</button>
+  <button class="action danger" onclick="rejectPayment(${p.id})">Rejeter</button>`:""}
+  </div>`;
+ }).join("");
+}
+
+function validatePayment(id){
+ const p=data.payments.find(x=>x.id===id);
+ if(!p || p.status!=="En attente") return;
+ if(!confirm("Confirmer la validation de ce paiement ?")) return;
+ p.status="Validé";
+ p.validatedAt=new Date().toISOString();
+ save();
+}
+
+function rejectPayment(id){
+ const p=data.payments.find(x=>x.id===id);
+ if(!p || p.status!=="En attente") return;
+ if(!confirm("Rejeter ce paiement ?")) return;
+ p.status="Rejeté";
+ save();
+}
+
+function updateDashboard(){
+ const valid=data.payments.filter(p=>p.status==="Validé");
+ const pending=data.payments.filter(p=>p.status==="En attente");
+ const revenue=valid.reduce((s,p)=>s+p.amount,0);
+ const waiting=pending.reduce((s,p)=>s+p.amount,0);
+
+ document.getElementById("totalMembers").textContent=data.members.length;
+ document.getElementById("totalRevenue").textContent=money(revenue);
+ document.getElementById("pendingPayments").textContent=pending.length;
+ document.getElementById("reportRevenue").textContent=money(revenue);
+ document.getElementById("validatedCount").textContent=valid.length;
+ document.getElementById("waitingAmount").textContent=money(waiting);
+}
+
+function escapeHTML(value){
+ return String(value).replace(/[&<>"']/g,c=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",
+  '"':"&quot;","'":"&#39;"
+ }[c]));
+}
+
+function exportCSV(){
+ const rows=[["Membre","Téléphone","Mois","Montant","Moyen","Statut"]];
+ data.payments.forEach(p=>{
+  const m=data.members.find(x=>x.id===p.memberId);
+  rows.push([m?m.name:"Inconnu",m?m.phone:"",p.month,p.amount,p.method,p.status]);
+ });
+ const csv="\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
+ const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement("a");
+ a.href=url;
+ a.download="rapport-mudeo.csv";
+ a.click();
+ URL.revokeObjectURL(url);
+}
+
+renderPaymentForm();
+updateDashboard();
+renderMembers();
+renderPayments();
+</script>
+
+</body>
+</html>
