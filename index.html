@@ -243,55 +243,128 @@ function showPage(id,button){
  if(id==="members") renderMembers();
 }
 
-document.getElementById("memberForm").addEventListener("submit",function(e){
- e.preventDefault();
+document.getElementById("memberForm").addEventListener("submit", async function(e){
+  e.preventDefault();
 
- const name=document.getElementById("memberName").value.trim();
- const phone=document.getElementById("memberPhone").value.trim();
+  const name=document.getElementById("memberName").value.trim();
+  const phone=document.getElementById("memberPhone").value.trim();
+  const residence=document.getElementById("memberPlace").value.trim();
 
- if(data.members.some(m=>m.phone===phone)){
-  alert("Ce numéro de téléphone existe déjà.");
-  return;
- }
+  if(!name || !phone){
+    alert("Veuillez renseigner le nom et le téléphone.");
+    return;
+  }
 
- data.members.push({
-  id:Date.now(),
-  name,
-  phone,
-  place:document.getElementById("memberPlace").value.trim()
- });
+  const {data: existing,error: searchError}=await supabaseClient
+    .from("members")
+    .select("id")
+    .eq("phone",phone)
+    .limit(1);
 
- this.reset();
- save();
- alert("Membre enregistré avec succès !");
+  if(searchError){
+    alert("Erreur de vérification : "+searchError.message);
+    return;
+  }
+
+  if(existing && existing.length>0){
+    alert("Ce numéro de téléphone existe déjà.");
+    return;
+  }
+
+  const {error}=await supabaseClient
+    .from("members")
+    .insert([{
+      full_name:name,
+      phone:phone,
+      residence:residence || null
+    }]);
+  if(error){
+    alert("Erreur d'enregistrement : "+error.message);
+    return;
+  }
+
+  this.reset();
+  await updateDashboard();
+
+  await renderMembers();
+
+  alert("Membre enregistré avec succès !");
 });
+  
 
 function renderMembers(){
  const search=document.getElementById("memberSearch").value.toLowerCase();
  const list=document.getElementById("memberList");
 
- const members=data.members.filter(m=>
-  m.name.toLowerCase().includes(search) || m.phone.includes(search)
- );
+async function renderMembers(){
 
- list.innerHTML=members.length ? members.map(m=>`
- <div class="item">
- <strong>${escapeHTML(m.name)}</strong><br>
- Téléphone : ${escapeHTML(m.phone)}<br>
- Résidence : ${escapeHTML(m.place||"-")}<br>
- <button class="action danger" onclick="deleteMember(${m.id})">Supprimer</button>
- </div>`).join("") : "<p>Aucun membre enregistré.</p>";
+  const search=document.getElementById("memberSearch").value.toLowerCase();
+  const list=document.getElementById("memberList");
+
+  const {data: members,error}=await supabaseClient
+    .from("members")
+    .select("id,full_name,phone,residence")
+    .order("full_name");
+
+  if(error){
+    console.error(error);
+    list.textContent="Erreur de chargement : "+error.message;
+    return;
+  }
+
+  const filtered=(members || []).filter(m=>
+    m.full_name.toLowerCase().includes(search) ||
+    m.phone.includes(search)
+  );
+
+  list.innerHTML=filtered.length ? filtered.map(m=>`
+    <div class="item">
+      <strong>${escapeHTML(m.full_name)}</strong><br>
+      Téléphone : ${escapeHTML(m.phone)}<br>
+      Résidence : ${escapeHTML(m.residence || "-")}<br>
+      <button class="action danger"
+        onclick="deleteMember('${m.id}')">Supprimer</button>
+    </div>
+  `).join("") : "<p>Aucun membre enregistré.</p>";
 }
 
-function deleteMember(id){
- if(!confirm("Supprimer ce membre ?")) return;
- if(data.payments.some(p=>p.memberId===id)){
-  alert("Ce membre possède des paiements. Suppression impossible.");
-  return;
- }
- data.members=data.members.filter(m=>m.id!==id);
- save();
+
+
+async function deleteMember(id){
+  if(!confirm("Supprimer ce membre ?")) return;
+
+  const {data: payments,error: paymentsError}=await supabaseClient
+    .from("payments")
+    .select("id")
+    .eq("member_id",id)
+    .limit(1);
+
+  if(paymentsError){
+    alert("Erreur de vérification : "+paymentsError.message);
+    return;
+  }
+
+  if(payments && payments.length>0){
+    alert("Ce membre possède des paiements. Suppression impossible.");
+    return;
+  }
+
+  const {error}=await supabaseClient
+    .from("members")
+    .delete()
+    .eq("id",id);
+
+  if(error){
+    alert("Erreur de suppression : "+error.message);
+    return;
+  }
+
+  alert("Membre supprimé avec succès !");
+  await updateDashboard();
+  await renderMembers();
+  await renderPaymentForm();
 }
+
 
 async function renderPaymentForm(){
   const select=document.getElementById("paymentMember");
