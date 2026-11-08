@@ -293,99 +293,197 @@ function deleteMember(id){
  save();
 }
 
-function renderPaymentForm(){
- const select=document.getElementById("paymentMember");
- const current=select.value;
- select.innerHTML='<option value="">Choisir un membre</option>';
- data.members.forEach(m=>{
-  select.innerHTML+=`<option value="${m.id}">${escapeHTML(m.name)}</option>`;
- });
- if(data.members.some(m=>String(m.id)===current)) select.value=current;
+async function renderPaymentForm(){
+  const select=document.getElementById("paymentMember");
+  const current=select.value;
+
+  const {data: members,error}=await supabaseClient
+    .from("members")
+    .select("id, full_name")
+    .order("full_name");
+
+  if(error){
+    console.error(error);
+    alert("Erreur lors du chargement des membres : "+error.message);
+    return;
+  }
+
+  select.innerHTML='<option value="">Choisir un membre</option>';
+
+  (members || []).forEach(m=>{
+    const option=document.createElement("option");
+    option.value=m.id;
+    option.textContent=m.full_name;
+    select.appendChild(option);
+  });
+
+  if(members.some(m=>String(m.id)===current)){
+    select.value=current;
+  }
+}
 }
 
-document.getElementById("paymentForm").addEventListener("submit",function(e){
- e.preventDefault();
+document.getElementById("paymentForm").addEventListener("submit", async function(e){
+  e.preventDefault();
 
- const memberId=Number(document.getElementById("paymentMember").value);
- const month=document.getElementById("paymentMonth").value;
- const amount=Number(document.getElementById("paymentAmount").value);
- const method=document.getElementById("paymentMethod").value;
+  const memberId = document.getElementById("paymentMember").value;
+  const month = document.getElementById("paymentMonth").value;
+  const amount = Number(document.getElementById("paymentAmount").value);
+  const method = document.getElementById("paymentMethod").value;
 
- if(!data.members.some(m=>m.id===memberId)){
-  alert("Veuillez choisir un membre.");
-  return;
- }
+  if(!memberId || !month || amount <= 0 || !method){
+    alert("Veuillez remplir tous les champs.");
+    return;
+  }
 
- if(!month || amount<=0 || !method) return;
+  const {error} = await supabaseClient
+    .from("payments")
+    .insert([{
+      member_id: memberId,
+      period: month + "-01",
+      amount: amount,
+      method: method,
+      status: "pending"
+    }]);
 
- data.payments.push({
-  id:Date.now(),
-  memberId,
-  month,
-  amount,
-  method,
-  date:new Date().toISOString(),
-  status:"En attente"
- });
+  if(error){
+    console.error(error);
+    alert("Erreur lors de l'enregistrement : " + error.message);
+    return;
+  }
 
- this.reset();
- save();
- alert("Paiement enregistré. En attente de validation du trésorier.");
+  this.reset();
+  await renderPaymentForm();
+
+  alert("Paiement enregistré avec succès. En attente de validation du trésorier.");
 });
 
-function renderPayments(){
- const list=document.getElementById("paymentList");
+async function renderPayments(){
+  const list=document.getElementById("paymentList");
 
- if(!data.payments.length){
-  list.innerHTML="<p>Aucun paiement enregistré.</p>";
-  return;
- }
+  const {data: payments,error}=await supabaseClient
+    .from("payments")
+    .select("*")
+    .order("created_at",{ascending:false});
 
- list.innerHTML=[...data.payments].reverse().map(p=>{
-  const m=data.members.find(x=>x.id===p.memberId);
-  return `<div class="item">
-  <strong>${escapeHTML(m?m.name:"Membre inconnu")}</strong><br>
-  Mois : ${escapeHTML(p.month)}<br>
-  Montant : ${money(p.amount)}<br>
-  Moyen : ${escapeHTML(p.method)}<br>
-  Statut : <span class="${p.status==="Validé"?"valid":"status"}">${p.status}</span><br>
-  ${p.status==="En attente"?
-  `<button class="action" onclick="validatePayment(${p.id})">Valider le paiement</button>
-  <button class="action danger" onclick="rejectPayment(${p.id})">Rejeter</button>`:""}
-  </div>`;
- }).join("");
+  if(error){
+    console.error(error);
+    list.textContent="Erreur : "+error.message;
+    return;
+  }
+
+  const {data: members,error: memberError}=await supabaseClient
+    .from("members")
+    .select("id, full_name");
+
+  if(memberError){
+    list.textContent="Erreur : "+memberError.message;
+    return;
+  }
+
+  if(!payments || payments.length===0){
+    list.innerHTML="<p>Aucun paiement enregistré.</p>";
+    return;
+  }
+
+  list.innerHTML=payments.map(p=>{
+    const m=members.find(x=>x.id===p.member_id);
+    const status=p.status==="pending"?"En attente":
+      p.status==="validated"?"Validé":
+      p.status==="rejected"?"Rejeté":p.status;
+
+    return `<div class="item">
+      <strong>${m ? escapeHTML(m.full_name) : "Membre inconnu"}</strong><br>
+      Mois : ${escapeHTML(p.period)}<br>
+      Montant : ${money(p.amount)}<br>
+      Moyen : ${escapeHTML(p.method)}<br>
+      Statut : ${escapeHTML(status)}<br>
+      ${p.status==="pending" ? `
+      <button class="action" onclick="validatePayment('${p.id}')">Valider le paiement</button>
+      <button class="action danger" onclick="rejectPayment('${p.id}')">Rejeter</button>` : ""}
+    </div>`;
+  }).join("");
 }
 
-function validatePayment(id){
- const p=data.payments.find(x=>x.id===id);
- if(!p || p.status!=="En attente") return;
- if(!confirm("Confirmer la validation de ce paiement ?")) return;
- p.status="Validé";
- p.validatedAt=new Date().toISOString();
- save();
+async function validatePayment(id){
+
+  if(!confirm("Confirmer la validation de ce paiement ?")) return;
+
+  const {data:{user},error:userError}=await supabaseClient.auth.getUser();
+
+  if(userError || !user){
+    alert("Utilisateur non connecté.");
+    return;
+  }
+
+  const {error}=await supabaseClient
+    .from("payments")
+    .update({
+      status:"validated",
+      validated_by:user.id,
+      validated_at:new Date().toISOString()
+    })
+    .eq("id",id)
+    .eq("status","pending");
+
+  if(error){
+    alert("Erreur de validation : "+error.message);
+    return;
+  }
+
+  alert("Paiement validé avec succès !");
+  await renderPayments();
 }
 
-function rejectPayment(id){
- const p=data.payments.find(x=>x.id===id);
- if(!p || p.status!=="En attente") return;
- if(!confirm("Rejeter ce paiement ?")) return;
- p.status="Rejeté";
- save();
+async function rejectPayment(id){
+
+  if(!confirm("Rejeter ce paiement ?")) return;
+
+  const {error}=await supabaseClient
+    .from("payments")
+    .update({status:"rejected"})
+    .eq("id",id)
+    .eq("status","pending");
+
+  if(error){
+    alert("Erreur de rejet : "+error.message);
+    return;
+  }
+
+  alert("Paiement rejeté.");
+  await renderPayments();
+}
+async function updateDashboard(){
+
+  const {count: totalMembers,error: membersError}=await supabaseClient
+    .from("members")
+    .select("*",{count:"exact",head:true});
+
+  const {data: payments,error: paymentsError}=await supabaseClient
+    .from("payments")
+    .select("amount,status");
+
+  if(membersError || paymentsError){
+    console.error(membersError || paymentsError);
+    alert("Erreur de chargement du tableau de bord.");
+    return;
+  }
+
+  const valid=payments.filter(p=>p.status==="validated");
+  const pending=payments.filter(p=>p.status==="pending");
+
+  const revenue=valid.reduce((s,p)=>s+Number(p.amount),0);
+  const waiting=pending.reduce((s,p)=>s+Number(p.amount),0);
+
+  document.getElementById("totalMembers").textContent=totalMembers || 0;
+  document.getElementById("totalRevenue").textContent=money(revenue);
+  document.getElementById("pendingPayments").textContent=pending.length;
+
+  document.getElementById("reportRevenue").textContent=money(revenue);
+  document.getElementById("validatedCount").textContent=valid.length;
+  document.getElementById("waitingAmount").textContent=money(waiting);
 }
 
-function updateDashboard(){
- const valid=data.payments.filter(p=>p.status==="Validé");
- const pending=data.payments.filter(p=>p.status==="En attente");
- const revenue=valid.reduce((s,p)=>s+p.amount,0);
- const waiting=pending.reduce((s,p)=>s+p.amount,0);
-
- document.getElementById("totalMembers").textContent=data.members.length;
- document.getElementById("totalRevenue").textContent=money(revenue);
- document.getElementById("pendingPayments").textContent=pending.length;
- document.getElementById("reportRevenue").textContent=money(revenue);
- document.getElementById("validatedCount").textContent=valid.length;
- document.getElementById("waitingAmount").textContent=money(waiting);
-}
 
 function escapeHTML(value){
  return String(value).replace(/[&<>"']/g,c=>({
