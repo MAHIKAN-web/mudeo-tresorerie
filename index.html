@@ -209,8 +209,15 @@ footer{text-align:center;padding:25px;color:#64748b}
 MUDEO – Trésorerie<br>
 Mutuelle de Développement de Ouétomba
 </footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>const SUPABASE_URL = "https://oakgjopjeqdapqqacyxz.supabase.co";
 
-<script>
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_hB4kcRawwuAVVSO66ecBYA_U7CkCj7J";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
 const KEY = "mudeo_tresorerie_v1";
 
 let data = JSON.parse(localStorage.getItem(KEY) || '{"members":[],"payments":[]}');
