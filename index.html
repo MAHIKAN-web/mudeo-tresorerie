@@ -92,7 +92,23 @@ footer{text-align:center;padding:25px;color:#64748b}
 </head>
 
 <body>
+<div id="loginScreen" class="card" style="max-width:450px;margin:50px auto;">
+  <h2>Connexion à MUDEO</h2>
 
+  <form id="loginForm">
+    <label>Adresse e-mail</label>
+    <input id="loginEmail" type="email" required placeholder="Votre e-mail">
+
+    <label>Mot de passe</label>
+    <input id="loginPassword" type="password" required placeholder="Votre mot de passe">
+
+    <button class="action" type="submit">Se connecter</button>
+  </form>
+
+  <p id="loginError" class="small"></p>
+</div>
+
+<div id="appContent" style="display:none;">
 <header>
 <h1>MUDEO – TRÉSORERIE</h1>
 <p>Mutuelle de Développement de Ouétomba</p>
@@ -322,14 +338,58 @@ async function renderMembers(){
       <strong>${escapeHTML(m.full_name)}</strong><br>
       Téléphone : ${escapeHTML(m.phone)}<br>
       Résidence : ${escapeHTML(m.residence || "-")}<br>
-      <button class="action danger"
-        onclick="deleteMember('${m.id}')">Supprimer</button>
+      
+      <button class="action" onclick="editMember('${m.id}')">Modifier</button>
+      
+<button class="action danger" onclick="deleteMember('${m.id}')">Supprimer</button>
     </div>
   `).join("") : "<p>Aucun membre enregistré.</p>";
 }
 
 
+async function editMember(id){
+  const {data: member,error}=await supabaseClient
+    .from("members")
+    .select("id,full_name,phone,residence")
+    .eq("id",id)
+    .single();
 
+  if(error){
+    alert("Erreur : "+error.message);
+    return;
+  }
+
+  const name=prompt("Nom et prénoms :",member.full_name);
+  if(name===null) return;
+
+  const phone=prompt("Numéro de téléphone :",member.phone);
+  if(phone===null) return;
+
+  const residence=prompt("Lieu de résidence :",member.residence || "");
+  if(residence===null) return;
+
+  if(!name.trim() || !phone.trim()){
+    alert("Le nom et le téléphone sont obligatoires.");
+    return;
+  }
+
+  const {error:updateError}=await supabaseClient
+    .from("members")
+    .update({
+      full_name:name.trim(),
+      phone:phone.trim(),
+      residence:residence.trim() || null
+    })
+    .eq("id",id);
+
+  if(updateError){
+    alert("Erreur de modification : "+updateError.message);
+    return;
+  }
+
+  alert("Informations modifiées avec succès !");
+  await renderMembers();
+}
 async function deleteMember(id){
   if(!confirm("Supprimer ce membre ?")) return;
 
@@ -581,11 +641,63 @@ function exportCSV(){
  URL.revokeObjectURL(url);
 }
 
-renderPaymentForm();
-updateDashboard();
-renderMembers();
-renderPayments();
+async function ouvrirApplication(user){
+
+  const {data:profil,error}=await supabaseClient
+    .from("profiles")
+    .select("role")
+    .eq("id",user.id)
+    .maybeSingle();
+
+  if(error || !profil || profil.role!=="administrateur"){
+    await supabaseClient.auth.signOut();
+    document.getElementById("loginError").textContent=
+      "Accès réservé à l'administrateur.";
+    return;
+  }
+
+  document.getElementById("loginScreen").style.display="none";
+  document.getElementById("appContent").style.display="block";
+
+  await renderPaymentForm();
+  await updateDashboard();
+  await renderMembers();
+  await renderPayments();
+}
+
+document.getElementById("loginForm").addEventListener("submit",async function(e){
+
+  e.preventDefault();
+
+  const email=document.getElementById("loginEmail").value.trim();
+  const password=document.getElementById("loginPassword").value;
+
+  const {data,error}=await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if(error){
+    document.getElementById("loginError").textContent=
+      "Erreur de connexion : "+error.message;
+    return;
+  }
+
+  await ouvrirApplication(data.user);
+});
+
+async function verifierSession(){
+
+  const {data}=await supabaseClient.auth.getSession();
+
+  if(data.session){
+    await ouvrirApplication(data.session.user);
+  }
+}
+
+verifierSession();
 </script>
 
+</div>
 </body>
 </html>
