@@ -185,11 +185,10 @@ footer{text-align:center;padding:25px;color:#64748b}
 
 <label>Moyen de paiement *</label>
 <select id="paymentMethod" required>
-<option value="">Choisir</option>
-<option>Espèces</option>
-<option>Mobile Money</option>
-<option>Virement bancaire</option>
-<option>Autre</option>
+  <option value="">Choisir</option>
+  <option value="cash">Espèces</option>
+  <option value="mobile_money">Mobile Money</option>
+  <option value="bank">Virement bancaire</option>
 </select>
 
 <button class="action" type="submit">Enregistrer le paiement</button>
