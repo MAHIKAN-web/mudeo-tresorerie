@@ -120,6 +120,7 @@ footer{text-align:center;padding:25px;color:#64748b}
 <button onclick="showPage('members',this)">Membres</button>
 <button onclick="showPage('payments',this)">Paiements</button>
 <button onclick="showPage('validation',this)">Validation</button>
+<button onclick="showPage('expenses',this)">Dépenses</button>
 <button onclick="showPage('reports',this)">Rapports</button>
 </nav>
 
@@ -143,7 +144,56 @@ footer{text-align:center;padding:25px;color:#64748b}
 <p class="small">Les paiements doivent être validés par le trésorier avant d'être comptabilisés.</p>
 </div>
 </section>
+<section id="expenses" class="page">
 
+<div class="card">
+<h2>Enregistrer une dépense</h2>
+
+<form id="expenseForm">
+
+<label>Motif de la dépense *</label>
+<input
+  id="expenseDescription"
+  type="text"
+  required
+  placeholder="Exemple : Achat de fournitures"
+>
+
+<label>Montant (FCFA) *</label>
+<input
+  id="expenseAmount"
+  type="number"
+  min="1"
+  required
+  placeholder="Montant de la dépense"
+>
+
+<label>Date de la dépense *</label>
+<input
+  id="expenseDate"
+  type="date"
+  required
+>
+
+<button class="action" type="submit">
+Enregistrer la dépense
+</button>
+
+</form>
+</div>
+
+<div class="card">
+<h2>Liste des dépenses</h2>
+
+<div class="stat">
+Total des dépenses
+<strong id="totalExpenses">0 FCFA</strong>
+</div>
+
+<div id="expenseList"></div>
+</div>
+
+</section>
 <section id="members" class="page">
 <div class="card">
 <h2>Enregistrer un membre</h2>
