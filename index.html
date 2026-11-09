@@ -1,5 +1,5 @@
 
-<!DOCTYPE html>
+<!DOCTYPE html>alert("Paiement validé avec succès !");
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -560,7 +560,8 @@ async function validatePayment(id){
   }
 
   alert("Paiement validé avec succès !");
-  await renderPayments();
+await renderPayments();
+await updateDashboard();
 }
 
 async function rejectPayment(id){
