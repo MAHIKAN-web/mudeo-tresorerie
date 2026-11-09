@@ -283,6 +283,81 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_PUBLISHABLE_KEY
 );
+ 
+async function renderExpenses(){
+
+  const list = document.getElementById("expenseList");
+  const totalElement = document.getElementById("totalExpenses");
+
+  const {data: expenses, error} = await supabaseClient
+    .from("expenses")
+    .select("id,description,amount,expense_date")
+    .order("expense_date", {ascending:false});
+
+  if(error){
+    console.error(error);
+    list.textContent = "Erreur de chargement : " + error.message;
+    return;
+  }
+
+  const rows = expenses || [];
+  const total = rows.reduce((sum,e)=>sum + Number(e.amount),0);
+
+  totalElement.textContent = money(total);
+
+  list.innerHTML = rows.length ? rows.map(e=>`
+    <div class="item">
+      <strong>${escapeHTML(e.description)}</strong><br>
+      Montant : ${money(e.amount)}<br>
+      Date : ${escapeHTML(e.expense_date)}
+    </div>
+  `).join("") : "<p>Aucune dépense enregistrée.</p>";
+}
+
+
+document.getElementById("expenseForm").addEventListener(
+  "submit",
+  async function(e){
+
+    e.preventDefault();
+
+    const description = document.getElementById("expenseDescription").value.trim();
+    const amount = Number(document.getElementById("expenseAmount").value);
+    const expense_date = document.getElementById("expenseDate").value;
+
+    if(!description || !Number.isInteger(amount) || amount <= 0 || !expense_date){
+      alert("Vérifie les informations de la dépense.");
+      return;
+    }
+
+    const {data:{user}, error:userError} =
+      await supabaseClient.auth.getUser();
+
+    if(userError || !user){
+      alert("Utilisateur non connecté.");
+      return;
+    }
+
+    const {error} = await supabaseClient
+      .from("expenses")
+      .insert({
+        description,
+        amount,
+        expense_date,
+        recorded_by:user.id
+      });
+
+    if(error){
+      alert("Erreur d'enregistrement : " + error.message);
+      return;
+    }
+
+    alert("Dépense enregistrée avec succès !");
+    document.getElementById("expenseForm").reset();
+    await renderExpenses();
+  }
+);
+
 const KEY = "mudeo_tresorerie_v1";
 
 let data = JSON.parse(localStorage.getItem(KEY) || '{"members":[],"payments":[]}');
@@ -611,6 +686,7 @@ async function validatePayment(id){
 
   alert("Paiement validé avec succès !");
 await renderPayments();
+ await renderExpenses();
 await updateDashboard();
 }
 
