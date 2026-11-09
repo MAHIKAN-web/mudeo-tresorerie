@@ -645,12 +645,16 @@ async function ouvrirApplication(user){
     .eq("id",user.id)
     .maybeSingle();
 
-  if(error || !profil || profil.role!=="administrateur"){
-    await supabaseClient.auth.signOut();
-    document.getElementById("loginError").textContent=
-      "Accès réservé à l'administrateur.";
-    return;
-  }
+  if(
+  error ||
+  !profil ||
+  !["administrateur","tresorier"].includes(profil.role)
+){
+  await supabaseClient.auth.signOut();
+  document.getElementById("loginError").textContent=
+    "Accès non autorisé.";
+  return;
+}
 
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("appContent").style.display="block";
