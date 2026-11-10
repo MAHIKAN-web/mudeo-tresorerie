@@ -892,7 +892,8 @@ async function ouvrirApplication(user){
 }
 
   currentUserRole = profil.role;
-
+document.getElementById("validationMenu").style.display =
+    currentUserRole === "tresorier" ? "inline-block" : "none";
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("appContent").style.display="block";
 
