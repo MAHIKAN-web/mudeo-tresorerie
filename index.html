@@ -1,4 +1,4 @@
- 
+    
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -95,15 +95,35 @@ footer{text-align:center;padding:25px;color:#64748b}
 <div id="loginScreen" class="card" style="max-width:450px;margin:50px auto;">
   <h2>Connexion à MUDEO</h2>
 
-  <form id="loginForm">
-    <label>Adresse e-mail</label>
-    <input id="loginEmail" type="email" required placeholder="Votre e-mail">
+  
+<form id="loginForm">
+  <label>Adresse e-mail (responsables)</label>
+  <input
+    id="loginEmail"
+    type="email"
+    placeholder="E-mail de l'administrateur ou du trésorier"
+  >
 
-    <label>Mot de passe</label>
-    <input id="loginPassword" type="password" required placeholder="Votre mot de passe">
+  <label>Numéro de téléphone (membres)</label>
+  <input
+    id="loginPhone"
+    type="tel"
+    placeholder="+2250712345678"
+  >
 
-    <button class="action" type="submit">Se connecter</button>
-  </form>
+  <label>Mot de passe</label>
+  <input
+    id="loginPassword"
+    type="password"
+    required
+    placeholder="Votre mot de passe"
+  >
+
+  <button class="action" type="submit">
+    Se connecter
+  </button>
+</form>
+
 
   <p id="loginError" class="small"></p>
 </div>
@@ -124,7 +144,27 @@ footer{text-align:center;padding:25px;color:#64748b}
 <button onclick="showPage('expenses',this)">Dépenses</button>
 <button onclick="showPage('reports',this)">Rapports</button>
 </nav>
+<div id="memberArea" style="display:none;max-width:850px;margin:auto;padding:15px;">
 
+  <div class="card">
+    <h2>Mon espace membre</h2>
+    <p>Bienvenue dans votre espace personnel MUDEO.</p>
+    <p><strong>Nom :</strong> <span id="memberAccountName">-</span></p>
+    <p><strong>Téléphone :</strong> <span id="memberAccountPhone">-</span></p>
+  </div>
+ 
+  <div class="card">
+    <h2>Mes cotisations</h2>
+    <div class="stat">
+      Total des paiements validés
+      <strong id="memberTotalPaid">0 FCFA</strong>
+    </div>
+    <div id="memberPaymentList">
+      Chargement de vos paiements...
+    </div>
+  </div>
+
+</div>
 <main>
 
 <section id="home" class="page active">
@@ -896,28 +936,42 @@ async function deconnexion() {
 }
 async function ouvrirApplication(user){
 
-  const {data:profil,error}=await supabaseClient
+  const {data: profil, error} = await supabaseClient
     .from("profiles")
     .select("role")
-    .eq("id",user.id)
+    .eq("id", user.id)
     .maybeSingle();
 
-  if(
-  error ||
-  !profil ||
-  !["administrateur","tresorier"].includes(profil.role)
-){
-  await supabaseClient.auth.signOut();
-  document.getElementById("loginError").textContent=
-    "Accès non autorisé.";
-  return;
-}
+  if(error || !profil){
+    await supabaseClient.auth.signOut();
+    document.getElementById("loginError").textContent =
+      "Profil introuvable ou accès non autorisé.";
+    return;
+  }
 
   currentUserRole = profil.role;
-document.getElementById("validationMenu").style.display =
+
+  // Accès réservé aux membres
+  if(currentUserRole === "membre"){
+    await supabaseClient.auth.signOut();
+    document.getElementById("loginError").textContent =
+      "Votre espace membre sera bientôt disponible.";
+    return;
+  }
+
+  // Vérification des responsables
+  if(!["administrateur", "tresorier"].includes(currentUserRole)){
+    await supabaseClient.auth.signOut();
+    document.getElementById("loginError").textContent =
+      "Accès non autorisé.";
+    return;
+  }
+
+  document.getElementById("validationMenu").style.display =
     currentUserRole === "tresorier" ? "inline-block" : "none";
-  document.getElementById("loginScreen").style.display="none";
-  document.getElementById("appContent").style.display="block";
+
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("appContent").style.display = "block";
 
   await renderPaymentForm();
   await updateDashboard();
@@ -925,28 +979,56 @@ document.getElementById("validationMenu").style.display =
   await renderPayments();
   await renderExpenses();
 }
-
-document.getElementById("loginForm").addEventListener("submit",async function(e){
-
+document.getElementById("loginForm").addEventListener("submit", async function(e) {
   e.preventDefault();
 
-  const email=document.getElementById("loginEmail").value.trim();
-  const password=document.getElementById("loginPassword").value;
+  const email = document.getElementById("loginEmail").value.trim();
+  const phone = document.getElementById("loginPhone").value.trim();
+  const password = document.getElementById("loginPassword").value;
 
-  const {data,error}=await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
+  const loginError = document.getElementById("loginError");
+  loginError.textContent = "";
 
-  if(error){
-    document.getElementById("loginError").textContent=
-      "Erreur de connexion : "+error.message;
+  // Vérifier qu'un seul identifiant est renseigné
+  if ((!email && !phone) || (email && phone)) {
+    loginError.textContent =
+      "Renseignez soit votre e-mail, soit votre numéro de téléphone.";
+    return;
+  }
+
+  // Préparer l'identifiant de connexion
+  let loginIdentifier = email;
+
+  if (phone) {
+    if (!/^\+225\d{10}$/.test(phone)) {
+      loginError.textContent =
+        "Le numéro doit être au format +225 suivi de 10 chiffres.";
+      return;
+    }
+
+    loginIdentifier =
+      phone.replace("+", "") + "@mudeo.invalid";
+  }
+
+  if (!password) {
+    loginError.textContent = "Veuillez saisir votre mot de passe.";
+    return;
+  }
+
+  const { data, error } =
+    await supabaseClient.auth.signInWithPassword({
+      email: loginIdentifier,
+      password: password
+    });
+
+  if (error) {
+    loginError.textContent =
+      "Identifiants incorrects ou connexion impossible.";
     return;
   }
 
   await ouvrirApplication(data.user);
 });
-
 async function verifierSession(){
 
   const {data}=await supabaseClient.auth.getSession();
