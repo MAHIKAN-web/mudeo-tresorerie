@@ -951,13 +951,84 @@ async function ouvrirApplication(user){
 
   currentUserRole = profil.role;
 
-  // Accès réservé aux membres
-  if(currentUserRole === "membre"){
+  
+// ESPACE PERSONNEL DU MEMBRE
+if(currentUserRole === "membre"){
+
+  const {data: member, error: memberError} =
+    await supabaseClient
+      .from("members")
+      .select("id,full_name,phone")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+  if(memberError || !member){
     await supabaseClient.auth.signOut();
     document.getElementById("loginError").textContent =
-      "Votre espace membre sera bientôt disponible.";
+      "Compte membre introuvable ou non relié.";
     return;
   }
+
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("appContent").style.display = "block";
+
+  document.querySelector("nav").style.display = "none";
+  document.querySelector("main").style.display = "none";
+  document.getElementById("memberArea").style.display = "block";
+
+  document.getElementById("memberAccountName").textContent =
+    member.full_name;
+
+  document.getElementById("memberAccountPhone").textContent =
+    member.phone;
+
+  const {data: payments, error: paymentError} =
+    await supabaseClient
+      .from("payments")
+      .select("period,amount,status")
+      .eq("member_id", member.id)
+      .order("period", {ascending:false});
+
+  const paymentList =
+    document.getElementById("memberPaymentList");
+
+  if(paymentError){
+    paymentList.textContent =
+      "Erreur de chargement des paiements.";
+    return;
+  }
+
+  const rows = payments || [];
+
+  const validated = rows.filter(
+    p => p.status === "validated"
+  );
+
+  const total = validated.reduce(
+    (sum,p) => sum + Number(p.amount), 0
+  );
+
+  document.getElementById("memberTotalPaid").textContent =
+    money(total);
+
+  paymentList.innerHTML = rows.length
+    ? rows.map(p => `
+        <div class="item">
+          <strong>Mois :</strong> ${escapeHTML(p.period)}<br>
+          <strong>Montant :</strong> ${money(p.amount)}<br>
+          <strong>Statut :</strong> ${
+            p.status === "validated" ? "Validé" :
+            p.status === "pending" ? "En attente" :
+            p.status === "rejected" ? "Rejeté" :
+            escapeHTML(p.status)
+          }
+        </div>
+      `).join("")
+    : "<p>Aucun paiement enregistré.</p>";
+
+  return;
+}
+
 
   // Vérification des responsables
   if(!["administrateur", "tresorier"].includes(currentUserRole)){
@@ -966,7 +1037,9 @@ async function ouvrirApplication(user){
       "Accès non autorisé.";
     return;
   }
-
+document.getElementById("memberArea").style.display = "none";
+document.querySelector("nav").style.display = "flex";
+document.querySelector("main").style.display = "block";
   document.getElementById("validationMenu").style.display =
     currentUserRole === "tresorier" ? "inline-block" : "none";
 
