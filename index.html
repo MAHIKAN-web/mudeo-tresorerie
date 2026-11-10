@@ -111,6 +111,7 @@ footer{text-align:center;padding:25px;color:#64748b}
 <div id="appContent" style="display:none;">
 <header>
 <h1>MUDEO – TRÉSORERIE</h1>
+ <button onclick="deconnexion()">Déconnexion</button>
 <p>Mutuelle de Développement de Ouétomba</p>
 <p>Ensemble pour construire Ouétomba</p>
 </header>
@@ -871,7 +872,12 @@ async function exportCSV(){
   a.click();
   URL.revokeObjectURL(url);
 }
-
+async function deconnexion() {
+  await supabaseClient.auth.signOut();
+  currentUserRole = null;
+  document.getElementById("appContent").style.display = "none";
+  document.getElementById("loginScreen").style.display = "block";
+}
 async function ouvrirApplication(user){
 
   const {data:profil,error}=await supabaseClient
