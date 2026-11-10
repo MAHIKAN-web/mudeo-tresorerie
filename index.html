@@ -733,7 +733,7 @@ async function renderPayments(){
       Montant : ${money(p.amount)}<br>
       Moyen : ${escapeHTML(p.method)}<br>
       Statut : ${escapeHTML(status)}<br>
-      ${p.status==="pending" ? `
+     ${p.status==="pending" && currentUserRole==="tresorier" ? `
       <button class="action" onclick="validatePayment('${p.id}')">Valider le paiement</button>
       <button class="action danger" onclick="rejectPayment('${p.id}')">Rejeter</button>` : ""}
     </div>`;
@@ -741,7 +741,10 @@ async function renderPayments(){
 }
 
 async function validatePayment(id){
-
+if(currentUserRole !== "tresorier"){
+  alert("Seul le trésorier peut valider un paiement.");
+  return;
+}
   if(!confirm("Confirmer la validation de ce paiement ?")) return;
 
   const {data:{user},error:userError}=await supabaseClient.auth.getUser();
@@ -773,7 +776,10 @@ await updateDashboard();
 }
 
 async function rejectPayment(id){
-
+if(currentUserRole !== "tresorier"){
+  alert("Seul le trésorier peut rejeter un paiement.");
+  return;
+}
   if(!confirm("Rejeter ce paiement ?")) return;
 
   const {error}=await supabaseClient
