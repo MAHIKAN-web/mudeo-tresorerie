@@ -514,6 +514,7 @@ document.getElementById("memberForm").addEventListener("submit", async function(
 });
   
 
+
 async function renderMembers(){
 
   const search=document.getElementById("memberSearch").value.toLowerCase();
@@ -531,8 +532,8 @@ async function renderMembers(){
   }
 
   const filtered=(members || []).filter(m=>
-    m.full_name.toLowerCase().includes(search) ||
-    m.phone.includes(search)
+    (m.full_name || "").toLowerCase().includes(search) ||
+    (m.phone || "").includes(search)
   );
 
   list.innerHTML=filtered.length ? filtered.map(m=>`
@@ -540,16 +541,21 @@ async function renderMembers(){
       <strong>${escapeHTML(m.full_name)}</strong><br>
       Téléphone : ${escapeHTML(m.phone)}<br>
       Résidence : ${escapeHTML(m.residence || "-")}<br>
-      
-      <button class="action" onclick="editMember('${m.id}')">Modifier</button>
-      
-<button class="action danger" onclick="deleteMember('${m.id}')">Supprimer</button>
+
+      ${currentUserRole === "administrateur" ? `
+        <button class="action" onclick="editMember('${m.id}')">Modifier</button>
+        <button class="action danger" onclick="deleteMember('${m.id}')">Supprimer</button>
+      ` : ""}
     </div>
   `).join("") : "<p>Aucun membre enregistré.</p>";
 }
 
 
 async function editMember(id){
+ if(currentUserRole !== "administrateur"){
+  alert("Seul l'administrateur peut modifier un membre.");
+  return;
+}
   const {data: member,error}=await supabaseClient
     .from("members")
     .select("id,full_name,phone,residence")
@@ -593,6 +599,10 @@ async function editMember(id){
   await renderMembers();
 }
 async function deleteMember(id){
+ if(currentUserRole !== "administrateur"){
+  alert("Seul l'administrateur peut supprimer un membre.");
+  return;
+}
   if(!confirm("Supprimer ce membre ?")) return;
 
   const {data: payments,error: paymentsError}=await supabaseClient
