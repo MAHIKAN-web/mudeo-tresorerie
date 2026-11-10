@@ -1,5 +1,5 @@
  
-<!DOCTYPE html>alert("Paiement validé avec succès !");
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -283,6 +283,8 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_PUBLISHABLE_KEY
 );
+
+let currentUserRole = null;
  
 async function renderExpenses(){
 
@@ -309,7 +311,11 @@ async function renderExpenses(){
     <div class="item">
       <strong>${escapeHTML(e.description)}</strong><br>
       Montant : ${money(e.amount)}<br>
-      Date : ${escapeHTML(e.expense_date)}
+      Date : ${escapeHTML(e.expense_date)}<br>
+      ${currentUserRole === "administrateur" ? `
+        <button class="action secondary" onclick="editExpense('${e.id}')">Modifier</button>
+        <button class="action danger" onclick="deleteExpense('${e.id}')">Supprimer</button>
+      ` : ""}
     </div>
   `).join("") : "<p>Aucune dépense enregistrée.</p>";
 }
@@ -358,6 +364,80 @@ document.getElementById("expenseForm").addEventListener(
   }
 );
 
+async function editExpense(id){
+  if(currentUserRole !== "administrateur"){
+    alert("Seul l'administrateur peut modifier une dépense.");
+    return;
+  }
+
+  const {data: expense, error} = await supabaseClient
+    .from("expenses")
+    .select("id,description,amount,expense_date")
+    .eq("id", id)
+    .single();
+
+  if(error){
+    alert("Erreur de chargement : " + error.message);
+    return;
+  }
+
+  const description = prompt("Motif de la dépense :", expense.description);
+  if(description === null) return;
+
+  const amountText = prompt("Montant en FCFA :", String(expense.amount));
+  if(amountText === null) return;
+
+  const expense_date = prompt("Date (AAAA-MM-JJ) :", expense.expense_date);
+  if(expense_date === null) return;
+
+  const amount = Number(amountText);
+  if(!description.trim() || !Number.isInteger(amount) || amount <= 0 ||
+     !/^\d{4}-\d{2}-\d{2}$/.test(expense_date)){
+    alert("Vérifie le motif, le montant et la date.");
+    return;
+  }
+
+  const {error:updateError} = await supabaseClient
+    .from("expenses")
+    .update({
+      description: description.trim(),
+      amount,
+      expense_date
+    })
+    .eq("id", id);
+
+  if(updateError){
+    alert("Erreur de modification : " + updateError.message);
+    return;
+  }
+
+  alert("Dépense modifiée avec succès !");
+  await renderExpenses();
+}
+
+async function deleteExpense(id){
+  if(currentUserRole !== "administrateur"){
+    alert("Seul l'administrateur peut supprimer une dépense.");
+    return;
+  }
+
+  if(!confirm("Voulez-vous vraiment supprimer cette dépense ?")) return;
+
+  const {error} = await supabaseClient
+    .from("expenses")
+    .delete()
+    .eq("id", id);
+
+  if(error){
+    alert("Erreur de suppression : " + error.message);
+    return;
+  }
+
+  alert("Dépense supprimée avec succès !");
+  await renderExpenses();
+}
+
+
 const KEY = "mudeo_tresorerie_v1";
 
 let data = JSON.parse(localStorage.getItem(KEY) || '{"members":[],"payments":[]}');
@@ -381,6 +461,7 @@ function showPage(id,button){
  button.classList.add("active");
  if(id==="validation") renderPayments();
  if(id==="members") renderMembers();
+ if(id==="expenses") renderExpenses();
 }
 
 document.getElementById("memberForm").addEventListener("submit", async function(e){
@@ -707,6 +788,7 @@ async function rejectPayment(id){
 
   alert("Paiement rejeté.");
   await renderPayments();
+  await renderExpenses();
 }
 async function updateDashboard(){
 
@@ -747,20 +829,47 @@ function escapeHTML(value){
  }[c]));
 }
 
-function exportCSV(){
- const rows=[["Membre","Téléphone","Mois","Montant","Moyen","Statut"]];
- data.payments.forEach(p=>{
-  const m=data.members.find(x=>x.id===p.memberId);
-  rows.push([m?m.name:"Inconnu",m?m.phone:"",p.month,p.amount,p.method,p.status]);
- });
- const csv="\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
- const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
- const url=URL.createObjectURL(blob);
- const a=document.createElement("a");
- a.href=url;
- a.download="rapport-mudeo.csv";
- a.click();
- URL.revokeObjectURL(url);
+async function exportCSV(){
+  const {data: payments, error} = await supabaseClient
+    .from("payments")
+    .select("member_id,period,amount,method,status")
+    .order("period", {ascending:false});
+
+  if(error){
+    alert("Erreur lors de l'export : " + error.message);
+    return;
+  }
+
+  const {data: members, error: membersError} = await supabaseClient
+    .from("members")
+    .select("id,full_name,phone");
+
+  if(membersError){
+    alert("Erreur lors du chargement des membres : " + membersError.message);
+    return;
+  }
+
+  const rows = [["Membre","Téléphone","Mois","Montant","Moyen","Statut"]];
+  (payments || []).forEach(p=>{
+    const m = (members || []).find(x=>x.id===p.member_id);
+    rows.push([
+      m ? m.full_name : "Inconnu",
+      m ? m.phone : "",
+      p.period,
+      p.amount,
+      p.method,
+      p.status
+    ]);
+  });
+
+  const csv="\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v ?? "").replace(/"/g,'""')+'"').join(";")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="rapport-mudeo.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function ouvrirApplication(user){
@@ -782,6 +891,8 @@ async function ouvrirApplication(user){
   return;
 }
 
+  currentUserRole = profil.role;
+
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("appContent").style.display="block";
 
@@ -789,6 +900,7 @@ async function ouvrirApplication(user){
   await updateDashboard();
   await renderMembers();
   await renderPayments();
+  await renderExpenses();
 }
 
 document.getElementById("loginForm").addEventListener("submit",async function(e){
