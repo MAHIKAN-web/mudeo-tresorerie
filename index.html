@@ -291,7 +291,7 @@ Total des dépenses
 <section id="validation" class="page">
 <div class="card">
 <h2>Validation des paiements</h2>
-<p class="small">Réservé au trésorier. Dans cette première version, cet écran n'est pas encore protégé par un compte utilisateur.</p>
+<p class="small">Espace réservé à l'administrateur et au trésorier pour valider ou rejeter les paiements.</p>
 <div id="paymentList"></div>
 </div>
 </section>
@@ -405,6 +405,7 @@ document.getElementById("expenseForm").addEventListener(
   }
 );
 
+
 async function editExpense(id){
   if(currentUserRole !== "administrateur"){
     alert("Seul l'administrateur peut modifier une dépense.");
@@ -432,20 +433,22 @@ async function editExpense(id){
   if(expense_date === null) return;
 
   const amount = Number(amountText);
+
   if(!description.trim() || !Number.isInteger(amount) || amount <= 0 ||
      !/^\d{4}-\d{2}-\d{2}$/.test(expense_date)){
     alert("Vérifie le motif, le montant et la date.");
     return;
   }
 
-  const {error:updateError} = await supabaseClient
-    .from("expenses")
-    .update({
-      description: description.trim(),
-      amount,
-      expense_date
-    })
-    .eq("id", id);
+  const {error:updateError} = await supabaseClient.rpc(
+    "admin_update_expense",
+    {
+      p_id: id,
+      p_description: description.trim(),
+      p_amount: amount,
+      p_expense_date: expense_date
+    }
+  );
 
   if(updateError){
     alert("Erreur de modification : " + updateError.message);
@@ -455,6 +458,7 @@ async function editExpense(id){
   alert("Dépense modifiée avec succès !");
   await renderExpenses();
 }
+
 
 async function deleteExpense(id){
   if(currentUserRole !== "administrateur"){
@@ -495,64 +499,60 @@ function money(n){
  return Number(n||0).toLocaleString("fr-FR")+" FCFA";
 }
 
-function showPage(id,button){
- document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
- document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
- document.getElementById(id).classList.add("active");
- button.classList.add("active");
- if(id==="validation") renderPayments();
- if(id==="members") renderMembers();
- if(id==="expenses") renderExpenses();
+
+
+function showPage(id, button) {
+
+  const role = currentUserRole;
+
+  // Accès réservé aux responsables
+  if (!["administrateur", "tresorier"].includes(role)) {
+    alert("Accès réservé aux responsables de MUDEO.");
+    return;
+  }
+
+  // Rubriques autorisées
+  const pagesAutorisees = [
+    "home",
+    "members",
+    "payments",
+    "validation",
+    "expenses",
+    "reports"
+  ];
+
+  if (!pagesAutorisees.includes(id)) {
+    alert("Rubrique non autorisée.");
+    return;
+  }
+
+  // Vérifier que la page existe
+  const page = document.getElementById(id);
+
+  if (!page) {
+    alert("Cette rubrique est introuvable.");
+    return;
+  }
+
+  // Afficher la rubrique
+  document.querySelectorAll(".page")
+    .forEach(p => p.classList.remove("active"));
+
+  document.querySelectorAll("nav button")
+    .forEach(b => b.classList.remove("active"));
+
+  page.classList.add("active");
+
+  if (button) {
+    button.classList.add("active");
+  }
+
+  // Actualiser les données
+  if (id === "validation") renderPayments();
+  if (id === "members") renderMembers();
+  if (id === "expenses") renderExpenses();
 }
 
-document.getElementById("memberForm").addEventListener("submit", async function(e){
-  e.preventDefault();
-
-  const name=document.getElementById("memberName").value.trim();
-  const phone=document.getElementById("memberPhone").value.trim();
-  const residence=document.getElementById("memberPlace").value.trim();
-
-  if(!name || !phone){
-    alert("Veuillez renseigner le nom et le téléphone.");
-    return;
-  }
-
-  const {data: existing,error: searchError}=await supabaseClient
-    .from("members")
-    .select("id")
-    .eq("phone",phone)
-    .limit(1);
-
-  if(searchError){
-    alert("Erreur de vérification : "+searchError.message);
-    return;
-  }
-
-  if(existing && existing.length>0){
-    alert("Ce numéro de téléphone existe déjà.");
-    return;
-  }
-
-  const {error}=await supabaseClient
-    .from("members")
-    .insert([{
-      full_name:name,
-      phone:phone,
-      residence:residence || null
-    }]);
-  if(error){
-    alert("Erreur d'enregistrement : "+error.message);
-    return;
-  }
-
-  this.reset();
-  await updateDashboard();
-
-  await renderMembers();
-
-  alert("Membre enregistré avec succès !");
-});
-  
 
 
 async function renderMembers(){
@@ -590,7 +590,7 @@ async function renderMembers(){
   `).join("") : "<p>Aucun membre enregistré.</p>";
 }
 
-
+    
 async function editMember(id){
  if(currentUserRole !== "administrateur"){
   alert("Seul l'administrateur peut modifier un membre.");
@@ -783,18 +783,20 @@ async function renderPayments(){
       Montant : ${money(p.amount)}<br>
       Moyen : ${escapeHTML(p.method)}<br>
       Statut : ${escapeHTML(status)}<br>
-     ${p.status==="pending" && currentUserRole==="tresorier" ? `
+     ${p.status==="pending" && ["administrateur","tresorier"].includes(currentUserRole) ? `
       <button class="action" onclick="validatePayment('${p.id}')">Valider le paiement</button>
       <button class="action danger" onclick="rejectPayment('${p.id}')">Rejeter</button>` : ""}
     </div>`;
   }).join("");
 }
 
+
 async function validatePayment(id){
-if(currentUserRole !== "tresorier"){
-  alert("Seul le trésorier peut valider un paiement.");
-  return;
-}
+  if(!["administrateur","tresorier"].includes(currentUserRole)){
+    alert("Accès réservé à l'administrateur et au trésorier.");
+    return;
+  }
+
   if(!confirm("Confirmer la validation de ce paiement ?")) return;
 
   const {data:{user},error:userError}=await supabaseClient.auth.getUser();
@@ -820,16 +822,18 @@ if(currentUserRole !== "tresorier"){
   }
 
   alert("Paiement validé avec succès !");
-await renderPayments();
- await renderExpenses();
-await updateDashboard();
+  await renderPayments();
+  await renderExpenses();
+  await updateDashboard();
 }
 
+
 async function rejectPayment(id){
-if(currentUserRole !== "tresorier"){
-  alert("Seul le trésorier peut rejeter un paiement.");
-  return;
-}
+  if(!["administrateur","tresorier"].includes(currentUserRole)){
+    alert("Accès réservé à l'administrateur et au trésorier.");
+    return;
+  }
+
   if(!confirm("Rejeter ce paiement ?")) return;
 
   const {error}=await supabaseClient
@@ -846,6 +850,7 @@ if(currentUserRole !== "tresorier"){
   alert("Paiement rejeté.");
   await renderPayments();
   await renderExpenses();
+  await updateDashboard();
 }
 async function updateDashboard(){
 
@@ -1040,8 +1045,10 @@ if(currentUserRole === "membre"){
 document.getElementById("memberArea").style.display = "none";
 document.querySelector("nav").style.display = "flex";
 document.querySelector("main").style.display = "block";
-  document.getElementById("validationMenu").style.display =
-    currentUserRole === "tresorier" ? "inline-block" : "none";
+ document.getElementById("validationMenu").style.display =
+  ["administrateur", "tresorier"].includes(currentUserRole)
+    ? "inline-block"
+    : "none";
 
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appContent").style.display = "block";
