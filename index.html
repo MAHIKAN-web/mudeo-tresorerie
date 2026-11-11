@@ -327,22 +327,7 @@ const supabaseClient = window.supabase.createClient(
 
 let currentUserRole = null;
 
-window.testerProtectionExpense = async function() {
-  const { data, error } = await supabaseClient.rpc(
-    "admin_update_expense",
-    {
-      p_id: "00000000-0000-0000-0000-000000000000",
-      p_description: "Test de sécurité",
-      p_amount: 1,
-      p_expense_date: "2026-11-11"
-    }
-  );
-
-  console.log("Résultat du test :", { data, error });
-};
-
 async function renderExpenses(){
-
 
   const list = document.getElementById("expenseList");
   const totalElement = document.getElementById("totalExpenses");
