@@ -178,22 +178,50 @@ footer{text-align:center;padding:25px;color:#64748b}
 <main>
 
 <section id="home" class="page active">
-<div class="card">
-<h2>Tableau de bord</h2>
-<div class="stat">Nombre de membres
-<strong id="totalMembers">0</strong></div>
-<div class="stat">Recettes validées
-<strong id="totalRevenue">0 FCFA</strong></div>
-<div class="stat">Paiements en attente
-<strong id="pendingPayments">0</strong></div>
-<div class="stat">Cotisation mensuelle
-<strong>5 000 FCFA</strong></div>
-</div>
-<div class="card">
-<h2>Bienvenue dans MUDEO</h2>
-<p>Cette application permet de suivre les membres, les cotisations et les recettes de la mutuelle.</p>
-<p class="small">Les paiements doivent être validés par le trésorier avant d'être comptabilisés.</p>
-</div>
+  <div class="card">
+    <h2>Tableau de bord</h2>
+
+    <div class="stat">
+      Nombre de membres
+      <strong id="totalMembers">0</strong>
+    </div>
+
+    <div class="stat">
+      Recettes validées
+      <strong id="totalRevenue">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Total des dépenses
+      <strong id="dashboardExpenses">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Solde disponible
+      <strong id="dashboardBalance">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Paiements en attente
+      <strong id="pendingPayments">0</strong>
+    </div>
+
+    <div class="stat">
+      Montant en attente
+      <strong id="dashboardWaitingAmount">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Cotisation mensuelle
+      <strong>5 000 FCFA</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Bienvenue dans MUDEO</h2>
+    <p>Cette application permet de suivre les membres, les cotisations et les recettes de la mutuelle.</p>
+    <p class="small">Les paiements doivent être validés par le trésorier avant d'être comptabilisés.</p>
+  </div>
 </section>
 <section id="expenses" class="page">
 
@@ -1015,44 +1043,81 @@ async function rejectPayment(id){
   await renderExpenses();
   await updateDashboard();
 }
+
 async function updateDashboard(){
 
-  const {count: totalMembers,error: membersError}=await supabaseClient
-    .from("members")
-    .select("*",{count:"exact",head:true});
+  const {count: totalMembers,error: membersError} =
+    await supabaseClient
+      .from("members")
+      .select("*",{count:"exact",head:true});
 
-  const {data: payments,error: paymentsError}=await supabaseClient
-    .from("payments")
-    .select("amount,status");
+  const {data: payments,error: paymentsError} =
+    await supabaseClient
+      .from("payments")
+      .select("amount,status");
 
-  if(membersError || paymentsError){
-    console.error(membersError || paymentsError);
+  const {data: expenses,error: expensesError} =
+    await supabaseClient
+      .from("expenses")
+      .select("amount");
+
+  if(membersError || paymentsError || expensesError){
+    console.error(membersError || paymentsError || expensesError);
     alert("Erreur de chargement du tableau de bord.");
     return;
   }
 
-  const valid=payments.filter(p=>p.status==="validated");
-  const pending=payments.filter(p=>p.status==="pending");
+  const valid = (payments || []).filter(
+    p => p.status === "validated"
+  );
 
-  const revenue=valid.reduce((s,p)=>s+Number(p.amount),0);
-  const waiting=pending.reduce((s,p)=>s+Number(p.amount),0);
+  const pending = (payments || []).filter(
+    p => p.status === "pending"
+  );
 
-  document.getElementById("totalMembers").textContent=totalMembers || 0;
-  document.getElementById("totalRevenue").textContent=money(revenue);
-  document.getElementById("pendingPayments").textContent=pending.length;
+  const revenue = valid.reduce(
+    (s,p) => s + Number(p.amount),0
+  );
 
-  document.getElementById("reportRevenue").textContent=money(revenue);
-  document.getElementById("validatedCount").textContent=valid.length;
-  document.getElementById("waitingAmount").textContent=money(waiting);
+  const waiting = pending.reduce(
+    (s,p) => s + Number(p.amount),0
+  );
+
+  const expenseTotal = (expenses || []).reduce(
+    (s,e) => s + Number(e.amount),0
+  );
+
+  const balance = revenue - expenseTotal;
+
+  document.getElementById("totalMembers").textContent =
+    totalMembers || 0;
+
+  document.getElementById("totalRevenue").textContent =
+    money(revenue);
+
+  document.getElementById("pendingPayments").textContent =
+    pending.length;
+
+  document.getElementById("reportRevenue").textContent =
+    money(revenue);
+
+  document.getElementById("validatedCount").textContent =
+    valid.length;
+
+  document.getElementById("waitingAmount").textContent =
+    money(waiting);
+
+  // Nouveaux indicateurs du tableau de bord
+  const dashboardExpenses = document.getElementById("dashboardExpenses");
+if (dashboardExpenses) dashboardExpenses.textContent = money(expenseTotal);
+
+const dashboardBalance = document.getElementById("dashboardBalance");
+if (dashboardBalance) dashboardBalance.textContent = money(balance);
+
+const dashboardWaitingAmount = document.getElementById("dashboardWaitingAmount");
+if (dashboardWaitingAmount) dashboardWaitingAmount.textContent = money(waiting);
 }
 
-
-function escapeHTML(value){
- return String(value).replace(/[&<>"']/g,c=>({
-  "&":"&amp;","<":"&lt;",">":"&gt;",
-  '"':"&quot;","'":"&#39;"
- }[c]));
-}
 
 async function exportCSV(){
   const {data: payments, error} = await supabaseClient
