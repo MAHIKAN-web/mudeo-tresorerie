@@ -596,6 +596,16 @@ function showPage(id, button) {
 
 
 
+function escapeHTML(value){
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
+}
+
 async function renderMembers(){
 
   const search=document.getElementById("memberSearch").value.toLowerCase();
@@ -718,6 +728,63 @@ async function deleteMember(id){
   await renderPaymentForm();
 }
 
+
+document.getElementById("memberForm").addEventListener(
+  "submit",
+  async function(e) {
+    e.preventDefault();
+
+    if (!["administrateur", "tresorier"].includes(currentUserRole)) {
+      alert("Seul un responsable autorisé peut ajouter un membre.");
+      return;
+    }
+
+    const name = document.getElementById("memberName").value.trim();
+    const phone = document.getElementById("memberPhone").value.trim();
+    const residence = document.getElementById("memberPlace").value.trim();
+
+    if (!name || !phone) {
+      alert("Le nom et le téléphone sont obligatoires.");
+      return;
+    }
+
+    const button = this.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Enregistrement en cours...";
+
+    try {
+      const { error } = await supabaseClient
+        .from("members")
+        .insert({
+          full_name: name,
+          phone: phone,
+          residence: residence || null
+        });
+
+      if (error) {
+        console.error("Erreur ajout membre :", error);
+        alert("Erreur d'enregistrement : " + error.message);
+        return;
+      }
+
+      alert("Membre enregistré avec succès !");
+
+      this.reset();
+
+      await renderMembers();
+      await renderPaymentForm();
+      await updateDashboard();
+
+    } catch (error) {
+      console.error(error);
+      alert("Une erreur inattendue est survenue : " + error.message);
+
+    } finally {
+      button.disabled = false;
+      button.textContent = "Ajouter le membre";
+    }
+  }
+);
 
 async function renderPaymentForm(){
   const select=document.getElementById("paymentMember");
