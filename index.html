@@ -443,6 +443,7 @@ document.getElementById("expenseForm").addEventListener(
     alert("Dépense enregistrée avec succès !");
     document.getElementById("expenseForm").reset();
     await renderExpenses();
+    await updateDashboard();
   }
 );
 
@@ -496,8 +497,9 @@ async function editExpense(id){
     return;
   }
 
-  alert("Dépense modifiée avec succès !");
-  await renderExpenses();
+ alert("Dépense modifiée avec succès !");
+await renderExpenses();
+await updateDashboard();
 }
 
 
@@ -520,7 +522,8 @@ async function deleteExpense(id){
   }
 
   alert("Dépense supprimée avec succès !");
-  await renderExpenses();
+await renderExpenses();
+await updateDashboard();
 }
 
 
