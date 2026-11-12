@@ -789,12 +789,143 @@ async function renderPayments(){
      ${p.status==="pending" && ["administrateur","tresorier"].includes(currentUserRole) ? `
       <button class="action" onclick="validatePayment('${p.id}')">Valider le paiement</button>
       <button class="action danger" onclick="rejectPayment('${p.id}')">Rejeter</button>` : ""}
+      ${p.status==="validated" ? `
+<button class="action" onclick="downloadReceipt('${p.id}')">
+Télécharger / Imprimer le reçu
+</button>
+` : ""}
     </div>`;
   }).join("");
 }
 
 
-async function validatePayment(id){
+
+async function downloadReceipt(id){
+
+  const printWindow = window.open("", "_blank");
+
+  if(!printWindow){
+    alert("Autorisez les fenêtres pop-up pour imprimer le reçu.");
+    return;
+  }
+
+  const {data:p, error} = await supabaseClient
+    .from("payments")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if(error || !p){
+    printWindow.close();
+    alert("Impossible de charger le paiement.");
+    return;
+  }
+
+  if(p.status !== "validated"){
+    printWindow.close();
+    alert("Ce paiement n'est pas encore validé.");
+    return;
+  }
+
+  const {data:m, error:memberError} = await supabaseClient
+    .from("members")
+    .select("full_name,phone")
+    .eq("id", p.member_id)
+    .single();
+
+  if(memberError || !m){
+    printWindow.close();
+    alert("Impossible de retrouver le membre.");
+    return;
+  }
+
+  const methods = {
+    cash:"Espèces",
+    wave:"Wave",
+    orange_money:"Orange Money",
+    mtn_money:"MTN Money",
+    moov_money:"Moov Money",
+    bank:"Virement bancaire"
+  };
+
+  const date = p.validated_at
+    ? new Date(p.validated_at).toLocaleDateString("fr-FR")
+    : "Non renseignée";
+
+  const reference = "MUDEO-" + String(p.id);
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="UTF-8">
+      <title>Reçu MUDEO</title>
+      <style>
+        body{
+          font-family:Arial,sans-serif;
+          padding:40px;
+          color:#222;
+        }
+        .receipt{
+          max-width:650px;
+          margin:auto;
+          border:2px solid #14532d;
+          padding:30px;
+        }
+        h1,h2,p.center{
+          text-align:center;
+          color:#14532d;
+        }
+        .line{
+          margin:18px 0;
+          border-bottom:1px solid #ddd;
+          padding-bottom:10px;
+        }
+        .thanks{
+          text-align:center;
+          margin-top:35px;
+          font-weight:bold;
+        }
+        @media print{
+          button{display:none}
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <h1>MUDEO</h1>
+        <p class="center">
+          MUTUELLE DE DÉVELOPPEMENT DE OUÉTOMBA
+        </p>
+        <p class="center">ENSEMBLE POUR CONSTRUIRE OUÉTOMBA</p>
+        <hr>
+        <h2>REÇU DE COTISATION</h2>
+
+        <div class="line"><b>Référence :</b> ${escapeHTML(reference)}</div>
+        <div class="line"><b>Membre :</b> ${escapeHTML(m.full_name)}</div>
+        <div class="line"><b>Téléphone :</b> ${escapeHTML(m.phone || "-")}</div>
+        <div class="line"><b>Période :</b> ${escapeHTML(p.period)}</div>
+        <div class="line"><b>Montant :</b> ${money(p.amount)}</div>
+        <div class="line"><b>Moyen de paiement :</b> ${escapeHTML(methods[p.method] || p.method)}</div>
+        <div class="line"><b>Date de validation :</b> ${date}</div>
+        <div class="line"><b>Statut :</b> VALIDÉ</div>
+
+        <p class="thanks">
+          Merci pour votre contribution au développement de Ouétomba.
+        </p>
+      </div>
+      <script>
+        window.onload = function(){
+          window.print();
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+}
+
+    async function validatePayment(id){
   if(!["administrateur","tresorier"].includes(currentUserRole)){
     alert("Accès réservé à l'administrateur et au trésorier.");
     return;
