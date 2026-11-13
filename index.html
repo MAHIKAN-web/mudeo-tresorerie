@@ -313,21 +313,51 @@ Total des dépenses
 
 </section>
 <section id="members" class="page">
+
 <div class="card">
-<h2>Enregistrer un membre</h2>
-<form id="memberForm">
-<label>Nom et prénoms *</label>
-<input id="memberName" required placeholder="Nom complet">
+  <h2>Enregistrer un membre</h2>
 
-<label>Numéro de téléphone *</label>
-<input id="memberPhone" required type="tel" placeholder="Téléphone">
+  <form id="memberForm">
 
-<label>Lieu de résidence</label>
-<input id="memberPlace" placeholder="Village ou ville">
+    <label>Nom et prénoms *</label>
+    <input id="memberName" required placeholder="Nom complet">
 
-<button class="action" type="submit">Ajouter le membre</button>
-</form>
+    <label>Numéro de téléphone *</label>
+    <input
+      id="memberPhone"
+      required
+      type="tel"
+      placeholder="+225XXXXXXXXXX"
+    >
+
+    <label>Lieu de résidence</label>
+    <input id="memberPlace" placeholder="Village ou ville">
+
+    <label>Mot de passe provisoire *</label>
+    <input
+      id="memberPassword"
+      type="password"
+      minlength="8"
+      required
+      placeholder="8 caractères minimum"
+    >
+
+    <label>Confirmer le mot de passe *</label>
+    <input
+      id="memberPasswordConfirm"
+      type="password"
+      minlength="8"
+      required
+      placeholder="Répéter le mot de passe"
+    >
+
+    <button class="action" type="submit">
+      Créer le compte du membre
+    </button>
+
+  </form>
 </div>
+
 <div class="card">
 <h2>Liste des membres</h2>
 <input id="memberSearch" placeholder="Rechercher un membre..." oninput="renderMembers()">
@@ -776,45 +806,69 @@ async function deleteMember(id){
 }
 
 
+
 document.getElementById("memberForm").addEventListener(
   "submit",
   async function(e) {
     e.preventDefault();
 
-    if (!["administrateur", "tresorier"].includes(currentUserRole)) {
-      alert("Seul un responsable autorisé peut ajouter un membre.");
+    if (currentUserRole !== "administrateur") {
+      alert("Seul l'administrateur peut créer un compte membre.");
       return;
     }
 
     const name = document.getElementById("memberName").value.trim();
     const phone = document.getElementById("memberPhone").value.trim();
     const residence = document.getElementById("memberPlace").value.trim();
+    const password = document.getElementById("memberPassword").value;
+    const passwordConfirm = document.getElementById("memberPasswordConfirm").value;
 
-    if (!name || !phone) {
-      alert("Le nom et le téléphone sont obligatoires.");
+    if (!name || !phone || !password) {
+      alert("Veuillez remplir tous les champs obligatoires.");
+      return;
+    }
+
+    if (!/^\+225\d{10}$/.test(phone)) {
+      alert("Le téléphone doit être au format +225 suivi de 10 chiffres.");
+      return;
+    }
+
+    if (password.length < 8) {
+      alert("Le mot de passe doit contenir au moins 8 caractères.");
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      alert("Les deux mots de passe ne sont pas identiques.");
       return;
     }
 
     const button = this.querySelector('button[type="submit"]');
     button.disabled = true;
-    button.textContent = "Enregistrement en cours...";
+    button.textContent = "Création du compte en cours...";
 
     try {
-      const { error } = await supabaseClient
-        .from("members")
-        .insert({
-          full_name: name,
-          phone: phone,
-          residence: residence || null
-        });
+      const { data, error } = await supabaseClient.functions.invoke(
+        "create-member-account",
+        {
+          body: {
+            name,
+            phone,
+            residence,
+            password
+          }
+        }
+      );
 
       if (error) {
-        console.error("Erreur ajout membre :", error);
-        alert("Erreur d'enregistrement : " + error.message);
-        return;
+        throw error;
       }
 
-      alert("Membre enregistré avec succès !");
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      alert("Compte membre créé avec succès !");
 
       this.reset();
 
@@ -823,12 +877,12 @@ document.getElementById("memberForm").addEventListener(
       await updateDashboard();
 
     } catch (error) {
-      console.error(error);
-      alert("Une erreur inattendue est survenue : " + error.message);
+      console.error("Erreur création membre :", error);
+      alert("Erreur : " + (error.message || "Création impossible."));
 
     } finally {
       button.disabled = false;
-      button.textContent = "Ajouter le membre";
+      button.textContent = "Créer le compte du membre";
     }
   }
 );
