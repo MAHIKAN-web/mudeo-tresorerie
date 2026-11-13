@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#14532d">
 <title>MUDEO - Trésorerie</title>
- 
+  
 <style>
 *{box-sizing:border-box}
 body{
@@ -126,6 +126,45 @@ footer{text-align:center;padding:25px;color:#64748b}
 
 
   <p id="loginError" class="small"></p>
+</div>
+
+<div id="passwordChangeScreen" class="card"
+     style="display:none;max-width:450px;margin:50px auto;">
+
+  <h2>Changer votre mot de passe</h2>
+
+  <p>
+    Pour sécuriser votre compte MUDEO,
+    veuillez remplacer votre mot de passe provisoire.
+  </p>
+
+  <form id="passwordChangeForm">
+
+    <label>Nouveau mot de passe</label>
+    <input
+      id="newPassword"
+      type="password"
+      minlength="8"
+      required
+      placeholder="8 caractères minimum"
+    >
+
+    <label>Confirmer le nouveau mot de passe</label>
+    <input
+      id="confirmNewPassword"
+      type="password"
+      minlength="8"
+      required
+      placeholder="Répéter le mot de passe"
+    >
+
+    <button class="action" type="submit">
+      Valider mon nouveau mot de passe
+    </button>
+
+  </form>
+
+  <p id="passwordChangeError" class="small"></p>
 </div>
 
 <div id="appContent" style="display:none;">
@@ -420,6 +459,11 @@ document.getElementById("expenseForm").addEventListener(
 
     const {data:{user}, error:userError} =
       await supabaseClient.auth.getUser();
+        if (!userData.user) {
+  errorMessage.textContent =
+    "Session introuvable. Veuillez vous reconnecter.";
+  return;
+}
 
     if(userError || !user){
       alert("Utilisateur non connecté.");
@@ -1235,13 +1279,14 @@ async function deconnexion() {
   await supabaseClient.auth.signOut();
   currentUserRole = null;
   document.getElementById("appContent").style.display = "none";
+  document.getElementById("passwordChangeScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "block";
 }
 async function ouvrirApplication(user){
 
   const {data: profil, error} = await supabaseClient
     .from("profiles")
-    .select("role")
+    .select("role,must_change_password")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -1253,7 +1298,16 @@ async function ouvrirApplication(user){
   }
 
   currentUserRole = profil.role;
-
+// Vérifier si le membre doit changer son mot de passe
+if (
+  currentUserRole === "membre" &&
+  profil.must_change_password === true
+) {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("appContent").style.display = "none";
+  document.getElementById("passwordChangeScreen").style.display = "block";
+  return;
+}
   
 // ESPACE PERSONNEL DU MEMBRE
 if(currentUserRole === "membre"){
@@ -1364,6 +1418,70 @@ document.querySelector("main").style.display = "block";
   await renderPayments();
   await renderExpenses();
 }
+      // CHANGEMENT OBLIGATOIRE DU MOT DE PASSE
+document.getElementById("passwordChangeForm")
+  .addEventListener("submit", async function(e) {
+
+    e.preventDefault();
+
+    const newPassword =
+      document.getElementById("newPassword").value;
+
+    const confirmNewPassword =
+      document.getElementById("confirmNewPassword").value;
+
+    const errorMessage =
+      document.getElementById("passwordChangeError");
+
+    errorMessage.textContent = "";
+
+    if (newPassword.length < 8) {
+      errorMessage.textContent =
+        "Le mot de passe doit contenir au moins 8 caractères.";
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      errorMessage.textContent =
+        "Les deux mots de passe ne sont pas identiques.";
+      return;
+    }
+
+    const { error: passwordError } =
+      await supabaseClient.auth.updateUser({
+        password: newPassword
+      });
+
+    if (passwordError) {
+      errorMessage.textContent =
+        "Erreur : " + passwordError.message;
+      return;
+    }
+
+  const { data: { user }, error: userError } =
+  await supabaseClient.auth.getUser();
+
+if (userError || !user) {
+  errorMessage.textContent =
+    "Session introuvable. Veuillez vous reconnecter.";
+  return;
+}
+
+const { error: profileError } =
+  await supabaseClient.rpc(
+    "clear_own_password_change_flag"
+  );
+
+if (profileError) {
+  errorMessage.textContent =
+    "Mot de passe changé, mais erreur de mise à jour du profil. Contactez l'administrateur.";
+  return;
+}
+
+document.getElementById("passwordChangeScreen").style.display = "none";
+
+await ouvrirApplication(user);
+  });
 document.getElementById("loginForm").addEventListener("submit", async function(e) {
   e.preventDefault();
 
