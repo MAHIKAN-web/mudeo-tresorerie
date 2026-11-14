@@ -1360,6 +1360,13 @@ if (
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appContent").style.display = "none";
   document.getElementById("passwordChangeScreen").style.display = "block";
+
+// Vider les champs à chaque ouverture
+document.getElementById("passwordChangeForm").reset();
+document.getElementById("newPassword").value = "";
+document.getElementById("confirmNewPassword").value = "";
+
+return;
   return;
 }
   
@@ -1531,6 +1538,8 @@ if (profileError) {
     "Mot de passe changé, mais erreur de mise à jour du profil. Contactez l'administrateur.";
   return;
 }
+
+document.getElementById("passwordChangeForm").reset();
 
 document.getElementById("passwordChangeScreen").style.display = "none";
 
