@@ -138,31 +138,40 @@ footer{text-align:center;padding:25px;color:#64748b}
     veuillez remplacer votre mot de passe provisoire.
   </p>
 
-  <form id="passwordChangeForm">
+ 
+<form id="passwordChangeForm" autocomplete="off">
 
-    <label>Nouveau mot de passe</label>
-    <input
-      id="newPassword"
-      type="password"
-      minlength="8"
-      required
-      placeholder="8 caractères minimum"
-    >
+  <label>Nouveau mot de passe</label>
+  <input
+    id="newPassword"
+    type="password"
+    minlength="8"
+    required
+    autocomplete="new-password"
+    placeholder="Choisissez un nouveau mot de passe"
+  >
 
-    <label>Confirmer le nouveau mot de passe</label>
-    <input
-      id="confirmNewPassword"
-      type="password"
-      minlength="8"
-      required
-      placeholder="Répéter le mot de passe"
-    >
+  <label>Confirmer le nouveau mot de passe</label>
+  <input
+    id="confirmNewPassword"
+    type="password"
+    minlength="8"
+    required
+    autocomplete="new-password"
+    placeholder="Saisissez à nouveau le même mot de passe"
+  >
 
-    <button class="action" type="submit">
-      Valider mon nouveau mot de passe
-    </button>
+  <p class="small">
+    Choisissez un mot de passe personnel d'au moins 8 caractères.
+    Mémorisez-le ou conservez-le dans un endroit sûr.
+  </p>
 
-  </form>
+  <button class="action" type="submit">
+    Valider mon nouveau mot de passe
+  </button>
+
+</form>
+
 
   <p id="passwordChangeError" class="small"></p>
 </div>
@@ -1367,7 +1376,7 @@ document.getElementById("newPassword").value = "";
 document.getElementById("confirmNewPassword").value = "";
 
 return;
-  return;
+
 }
   
 // ESPACE PERSONNEL DU MEMBRE
