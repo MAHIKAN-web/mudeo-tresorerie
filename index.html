@@ -498,11 +498,7 @@ document.getElementById("expenseForm").addEventListener(
 
     const {data:{user}, error:userError} =
       await supabaseClient.auth.getUser();
-        if (!userData.user) {
-  errorMessage.textContent =
-    "Session introuvable. Veuillez vous reconnecter.";
-  return;
-}
+        
 
     if(userError || !user){
       alert("Utilisateur non connecté.");
