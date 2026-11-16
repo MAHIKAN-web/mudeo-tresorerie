@@ -88,6 +88,47 @@ label{font-weight:bold;font-size:14px}
 .valid{color:#15803d}
 .small{font-size:13px;color:#64748b}
 footer{text-align:center;padding:25px;color:#64748b}
+
+  .members-table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 15px;
+}
+
+.members-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 14px;
+}
+
+.members-table th,
+.members-table td {
+  border: 1px solid #d5d5d5;
+  padding: 10px;
+  text-align: left;
+}
+
+.members-table th {
+  background: #e8f1eb;
+  color: #14532d;
+  font-weight: bold;
+}
+
+.members-table tbody tr:nth-child(even) {
+  background: #f7faf8;
+}
+
+.members-table .member-actions {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.members-table .member-actions button {
+  width: auto;
+  margin: 2px;
+  padding: 7px 12px;
+}    
 </style>
 </head>
 
@@ -688,39 +729,62 @@ function escapeHTML(value){
   })[char]);
 }
 
+
 async function renderMembers(){
 
-  const search=document.getElementById("memberSearch").value.toLowerCase();
-  const list=document.getElementById("memberList");
+  const search = document.getElementById("memberSearch").value.toLowerCase();
+  const list = document.getElementById("memberList");
 
-  const {data: members,error}=await supabaseClient
+  const {data: members, error} = await supabaseClient
     .from("members")
     .select("id,full_name,phone,residence")
     .order("full_name");
 
   if(error){
     console.error(error);
-    list.textContent="Erreur de chargement : "+error.message;
+    list.textContent = "Erreur de chargement : " + error.message;
     return;
   }
 
-  const filtered=(members || []).filter(m=>
+  const filtered = (members || []).filter(m =>
     (m.full_name || "").toLowerCase().includes(search) ||
     (m.phone || "").includes(search)
   );
 
-  list.innerHTML=filtered.length ? filtered.map(m=>`
-    <div class="item">
-      <strong>${escapeHTML(m.full_name)}</strong><br>
-      Téléphone : ${escapeHTML(m.phone)}<br>
-      Résidence : ${escapeHTML(m.residence || "-")}<br>
+  if(!filtered.length){
+    list.innerHTML = "<p>Aucun membre enregistré.</p>";
+    return;
+  }
 
-      ${currentUserRole === "administrateur" ? `
-        <button class="action" onclick="editMember('${m.id}')">Modifier</button>
-        <button class="action danger" onclick="deleteMember('${m.id}')">Supprimer</button>
-      ` : ""}
+  list.innerHTML = `
+    <div class="members-table-container">
+      <table class="members-table">
+        <thead>
+          <tr>
+            <th>Nom et prénoms</th>
+            <th>Téléphone</th>
+            <th>Résidence</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.map(m => `
+            <tr>
+              <td><strong>${escapeHTML(m.full_name)}</strong></td>
+              <td>${escapeHTML(m.phone)}</td>
+              <td>${escapeHTML(m.residence || "-")}</td>
+              <td class="member-actions">
+                ${currentUserRole === "administrateur" ? `
+                  <button class="action" onclick="editMember('${m.id}')">Modifier</button>
+                  <button class="action danger" onclick="deleteMember('${m.id}')">Supprimer</button>
+                ` : "-"}
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
     </div>
-  `).join("") : "<p>Aucun membre enregistré.</p>";
+  `;
 }
 
     
@@ -1070,6 +1134,8 @@ async function downloadReceipt(id){
     <head>
       <meta charset="UTF-8">
       <title>Reçu MUDEO</title>
+
+      
       <style>
         body{
           font-family:Arial,sans-serif;
@@ -1099,6 +1165,7 @@ async function downloadReceipt(id){
         @media print{
           button{display:none}
         }
+        
       </style>
     </head>
     <body>
