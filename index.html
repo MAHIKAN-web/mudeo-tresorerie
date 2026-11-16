@@ -425,8 +425,14 @@ Total des dépenses
 <option value="">Choisir un membre</option>
 </select>
 
-<label>Mois de cotisation *</label>
-<input id="paymentMonth" type="month" required>
+
+<label>Date de cotisation *</label>
+<input
+  id="paymentMonth"
+  type="date"
+  required
+>
+
 
 <label>Montant (FCFA) *</label>
 <input id="paymentAmount" type="number" min="1" value="5000" required>
@@ -986,15 +992,17 @@ async function renderPaymentForm(){
 
 }
 
+
 document.getElementById("paymentForm").addEventListener("submit", async function(e){
   e.preventDefault();
 
   const memberId = document.getElementById("paymentMember").value;
-  const month = document.getElementById("paymentMonth").value;
+  const paymentDate = document.getElementById("paymentMonth").value;
+  const month = paymentDate ? paymentDate.substring(0, 7) : "";
   const amount = Number(document.getElementById("paymentAmount").value);
   const method = document.getElementById("paymentMethod").value;
 
-  if(!memberId || !month || amount <= 0 || !method){
+  if(!memberId || !paymentDate || amount <= 0 || !method){
     alert("Veuillez remplir tous les champs.");
     return;
   }
@@ -1004,6 +1012,7 @@ document.getElementById("paymentForm").addEventListener("submit", async function
     .insert([{
       member_id: memberId,
       period: month + "-01",
+      payment_date: paymentDate,
       amount: amount,
       method: method,
       status: "pending"
@@ -1020,6 +1029,7 @@ document.getElementById("paymentForm").addEventListener("submit", async function
 
   alert("Paiement enregistré avec succès. En attente de validation du trésorier.");
 });
+
 
 
 async function renderPayments(){
@@ -1077,7 +1087,7 @@ async function renderPayments(){
         <thead>
           <tr style="background:#e8f3ec;">
             <th style="padding:10px;border:1px solid #ccc;">NOM</th>
-            <th style="padding:10px;border:1px solid #ccc;">MOIS</th>
+           <th style="padding:10px;border:1px solid #ccc;">DATE DE COTISATION</th>
             <th style="padding:10px;border:1px solid #ccc;">MONTANT</th>
             <th style="padding:10px;border:1px solid #ccc;">MOYEN</th>
             <th style="padding:10px;border:1px solid #ccc;">STATUT</th>
@@ -1126,9 +1136,11 @@ async function renderPayments(){
                   ${m ? escapeHTML(m.full_name) : "Membre inconnu"}
                 </td>
 
-                <td style="padding:9px;border:1px solid #ccc;">
-                  ${escapeHTML(p.period || "")}
-                </td>
+               <td style="padding:9px;border:1px solid #ccc;">
+  ${p.payment_date
+    ? new Date(p.payment_date + "T00:00:00").toLocaleDateString("fr-FR")
+    : ""}
+</td>
 
                 <td style="padding:9px;border:1px solid #ccc;white-space:nowrap;">
                   ${money(p.amount)}
@@ -1154,46 +1166,6 @@ async function renderPayments(){
     </div>
   `;
 }
-
-async function downloadReceipt(id){
-  const {data: members,error: memberError}=await supabaseClient
-    .from("members")
-    .select("id, full_name");
-
-  if(memberError){
-    list.textContent="Erreur : "+memberError.message;
-    return;
-  }
-
-  if(!payments || payments.length===0){
-    list.innerHTML="<p>Aucun paiement enregistré.</p>";
-    return;
-  }
-
-  list.innerHTML=payments.map(p=>{
-    const m=members.find(x=>x.id===p.member_id);
-    const status=p.status==="pending"?"En attente":
-      p.status==="validated"?"Validé":
-      p.status==="rejected"?"Rejeté":p.status;
-
-    return `<div class="item">
-      <strong>${m ? escapeHTML(m.full_name) : "Membre inconnu"}</strong><br>
-      Mois : ${escapeHTML(p.period)}<br>
-      Montant : ${money(p.amount)}<br>
-      Moyen : ${escapeHTML(p.method)}<br>
-      Statut : ${escapeHTML(status)}<br>
-     ${p.status==="pending" && ["administrateur","tresorier"].includes(currentUserRole) ? `
-      <button class="action" onclick="validatePayment('${p.id}')">Valider le paiement</button>
-      <button class="action danger" onclick="rejectPayment('${p.id}')">Rejeter</button>` : ""}
-      ${p.status==="validated" ? `
-<button class="action" onclick="downloadReceipt('${p.id}')">
-Télécharger / Imprimer le reçu
-</button>
-` : ""}
-    </div>`;
-  }).join("");
-}
-
 
 
 async function downloadReceipt(id){
@@ -1244,7 +1216,11 @@ async function downloadReceipt(id){
     bank:"Virement bancaire"
   };
 
-  const date = p.validated_at
+ const date = p.payment_date
+    ? new Date(p.payment_date + "T00:00:00").toLocaleDateString("fr-FR")
+    : "Non renseignée";
+
+const validationDate = p.validated_at
     ? new Date(p.validated_at).toLocaleDateString("fr-FR")
     : "Non renseignée";
 
@@ -1302,10 +1278,11 @@ async function downloadReceipt(id){
         <div class="line"><b>Référence :</b> ${escapeHTML(reference)}</div>
         <div class="line"><b>Membre :</b> ${escapeHTML(m.full_name)}</div>
         <div class="line"><b>Téléphone :</b> ${escapeHTML(m.phone || "-")}</div>
-        <div class="line"><b>Période :</b> ${escapeHTML(p.period)}</div>
+        <div class="line"><b>Date de cotisation :</b> ${date}</div>
+<div class="line"><b>Mois concerné :</b> ${escapeHTML(p.period)}</div>
         <div class="line"><b>Montant :</b> ${money(p.amount)}</div>
         <div class="line"><b>Moyen de paiement :</b> ${escapeHTML(methods[p.method] || p.method)}</div>
-        <div class="line"><b>Date de validation :</b> ${date}</div>
+       <div class="line"><b>Date de validation :</b> ${validationDate}</div>
         <div class="line"><b>Statut :</b> VALIDÉ</div>
 
         <p class="thanks">
@@ -1596,7 +1573,7 @@ if(currentUserRole === "membre"){
   const {data: payments, error: paymentError} =
     await supabaseClient
       .from("payments")
-      .select("id,period,amount,status")
+      .select("id,period,payment_date,amount,status")
       .eq("member_id", member.id)
       .order("period", {ascending:false});
 
@@ -1626,7 +1603,11 @@ if(currentUserRole === "membre"){
 paymentList.innerHTML = rows.length
   ? rows.map(p => `
       <div class="item">
-        <strong>Mois :</strong> ${escapeHTML(p.period)}<br>
+       <strong>Date de cotisation :</strong> ${
+  p.payment_date
+    ? new Date(p.payment_date + "T00:00:00").toLocaleDateString("fr-FR")
+    : "Date non renseignée"
+}<br>
         <strong>Montant :</strong> ${money(p.amount)}<br>
         <strong>Statut :</strong> ${
           p.status === "validated" ? "Validé" :
