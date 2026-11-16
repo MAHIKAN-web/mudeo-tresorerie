@@ -1021,20 +1021,141 @@ document.getElementById("paymentForm").addEventListener("submit", async function
   alert("Paiement enregistré avec succès. En attente de validation du trésorier.");
 });
 
-async function renderPayments(){
-  const list=document.getElementById("paymentList");
 
-  const {data: payments,error}=await supabaseClient
+async function renderPayments(){
+
+  const list = document.getElementById("paymentList");
+
+  const {data: payments, error} = await supabaseClient
     .from("payments")
     .select("*")
-    .order("created_at",{ascending:false});
+    .order("created_at", {ascending:false});
 
   if(error){
     console.error(error);
-    list.textContent="Erreur : "+error.message;
+    list.textContent = "Erreur : " + error.message;
     return;
   }
 
+  const {data: members, error: memberError} = await supabaseClient
+    .from("members")
+    .select("id, full_name");
+
+  if(memberError){
+    list.textContent = "Erreur : " + memberError.message;
+    return;
+  }
+
+  if(!payments || payments.length === 0){
+    list.innerHTML = "<p>Aucun paiement enregistré.</p>";
+    return;
+  }
+
+  const methods = {
+    cash: "Espèces",
+    wave: "Wave",
+    orange_money: "Orange Money",
+    mtn_money: "MTN Money",
+    moov_money: "Moov Money",
+    bank: "Virement bancaire"
+  };
+
+  const statusLabels = {
+    pending: "En attente",
+    validated: "Validé",
+    rejected: "Rejeté"
+  };
+
+  list.innerHTML = `
+    <div style="overflow-x:auto; width:100%;">
+      <table style="
+        width:100%;
+        border-collapse:collapse;
+        font-size:13px;
+        min-width:650px;
+      ">
+        <thead>
+          <tr style="background:#e8f3ec;">
+            <th style="padding:10px;border:1px solid #ccc;">NOM</th>
+            <th style="padding:10px;border:1px solid #ccc;">MOIS</th>
+            <th style="padding:10px;border:1px solid #ccc;">MONTANT</th>
+            <th style="padding:10px;border:1px solid #ccc;">MOYEN</th>
+            <th style="padding:10px;border:1px solid #ccc;">STATUT</th>
+            <th style="padding:10px;border:1px solid #ccc;">ACTIONS</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${payments.map(p => {
+
+            const m = members.find(x => x.id === p.member_id);
+
+            const status = statusLabels[p.status] || p.status;
+
+            let actions = "";
+
+            if(
+              p.status === "pending" &&
+              ["administrateur","tresorier"].includes(currentUserRole)
+            ){
+              actions = `
+                <button class="action"
+                  onclick="validatePayment('${p.id}')">
+                  Valider paiement
+                </button>
+
+                <button class="action danger"
+                  onclick="rejectPayment('${p.id}')">
+                  Rejeter
+                </button>
+              `;
+            }
+
+            if(p.status === "validated"){
+              actions = `
+                <button class="action"
+                  onclick="downloadReceipt('${p.id}')">
+                  Télécharger / Imprimer reçu
+                </button>
+              `;
+            }
+
+            return `
+              <tr>
+                <td style="padding:9px;border:1px solid #ccc;">
+                  ${m ? escapeHTML(m.full_name) : "Membre inconnu"}
+                </td>
+
+                <td style="padding:9px;border:1px solid #ccc;">
+                  ${escapeHTML(p.period || "")}
+                </td>
+
+                <td style="padding:9px;border:1px solid #ccc;white-space:nowrap;">
+                  ${money(p.amount)}
+                </td>
+
+                <td style="padding:9px;border:1px solid #ccc;">
+                  ${escapeHTML(methods[p.method] || p.method || "")}
+                </td>
+
+                <td style="padding:9px;border:1px solid #ccc;">
+                  ${escapeHTML(status)}
+                </td>
+
+                <td style="padding:9px;border:1px solid #ccc;">
+                  ${actions || "-"}
+                </td>
+              </tr>
+            `;
+
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function downloadReceipt(id){
   const {data: members,error: memberError}=await supabaseClient
     .from("members")
     .select("id, full_name");
