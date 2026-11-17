@@ -1168,6 +1168,7 @@ async function renderPayments(){
 }
 
 
+
 async function downloadReceipt(id){
 
   const printWindow = window.open("", "_blank");
@@ -1216,15 +1217,16 @@ async function downloadReceipt(id){
     bank:"Virement bancaire"
   };
 
- const date = p.payment_date
+  const date = p.payment_date
     ? new Date(p.payment_date + "T00:00:00").toLocaleDateString("fr-FR")
     : "Non renseignée";
 
-const validationDate = p.validated_at
+  const validationDate = p.validated_at
     ? new Date(p.validated_at).toLocaleDateString("fr-FR")
     : "Non renseignée";
 
   const reference = "MUDEO-" + String(p.id);
+
   printWindow.document.write(`
     <!DOCTYPE html>
     <html lang="fr">
@@ -1232,93 +1234,227 @@ const validationDate = p.validated_at
       <meta charset="UTF-8">
       <title>Reçu MUDEO</title>
 
-      
       <style>
+        *{
+          box-sizing:border-box;
+        }
+
+        @page{
+          size:A5 portrait;
+          margin:8mm;
+        }
+
         body{
           font-family:Arial,sans-serif;
-          padding:40px;
+          margin:0;
+          padding:0;
           color:#222;
+          background:white;
+          font-size:11px;
         }
+
         .receipt{
-          max-width:650px;
+          width:100%;
+          max-width:100%;
           margin:auto;
           border:2px solid #14532d;
-          padding:30px;
+          padding:7mm;
+          background:white;
         }
-        h1,h2,p.center{
+
+        h1{
           text-align:center;
           color:#14532d;
+          font-size:23px;
+          margin:0 0 5px;
         }
+
+        h2{
+          text-align:center;
+          color:#14532d;
+          font-size:16px;
+          margin:12px 0;
+        }
+
+        p.center{
+          text-align:center;
+          margin:4px 0;
+          font-size:10px;
+        }
+
+        hr{
+          border:0;
+          border-top:1px solid #14532d;
+          margin:9px 0;
+        }
+
         .line{
-          margin:18px 0;
+          margin:7px 0;
           border-bottom:1px solid #ddd;
-          padding-bottom:10px;
+          padding-bottom:5px;
+          line-height:1.3;
         }
+
         .thanks{
           text-align:center;
-          margin-top:35px;
+          margin:13px 0;
+          font-weight:bold;
+          font-size:10px;
+          line-height:1.4;
+        }
+
+        .signatures{
+          display:flex;
+          justify-content:space-between;
+          align-items:flex-end;
+          gap:10px;
+          margin-top:12px;
+          text-align:center;
+        }
+
+        .signature-box,
+        .stamp-box{
+          width:50%;
+          font-size:10px;
           font-weight:bold;
         }
-        @media print{
-          button{display:none}
+
+        .signature-box img{
+          width:130px;
+          height:48px;
+          object-fit:contain;
+          display:block;
+          margin:5px auto 0;
         }
-        
+
+        .stamp-box img{
+          width:105px;
+          height:75px;
+          object-fit:contain;
+          display:block;
+          margin:4px auto 0;
+        }
+
+        @media screen{
+          body{
+            padding:15px;
+            background:#eee;
+          }
+
+          .receipt{
+            max-width:148mm;
+          }
+        }
+
+        @media print{
+          body{
+            padding:0;
+            background:white;
+          }
+
+          .receipt{
+            width:100%;
+            border:2px solid #14532d;
+          }
+        }
       </style>
     </head>
+
     <body>
       <div class="receipt">
+
         <h1>MUDEO</h1>
+
         <p class="center">
           MUTUELLE DE DÉVELOPPEMENT DE OUÉTOMBA
         </p>
-        <p class="center">ENSEMBLE POUR CONSTRUIRE OUÉTOMBA</p>
+
+        <p class="center">
+          ENSEMBLE POUR CONSTRUIRE OUÉTOMBA
+        </p>
+
         <hr>
+
         <h2>REÇU DE COTISATION</h2>
 
-        <div class="line"><b>Référence :</b> ${escapeHTML(reference)}</div>
-        <div class="line"><b>Membre :</b> ${escapeHTML(m.full_name)}</div>
-        <div class="line"><b>Téléphone :</b> ${escapeHTML(m.phone || "-")}</div>
-        <div class="line"><b>Date de cotisation :</b> ${date}</div>
-<div class="line"><b>Mois concerné :</b> ${escapeHTML(p.period)}</div>
-        <div class="line"><b>Montant :</b> ${money(p.amount)}</div>
-        <div class="line"><b>Moyen de paiement :</b> ${escapeHTML(methods[p.method] || p.method)}</div>
-       <div class="line"><b>Date de validation :</b> ${validationDate}</div>
-        <div class="line"><b>Statut :</b> VALIDÉ</div>
+        <div class="line">
+          <b>Référence :</b> ${escapeHTML(reference)}
+        </div>
+
+        <div class="line">
+          <b>Membre :</b> ${escapeHTML(m.full_name)}
+        </div>
+
+        <div class="line">
+          <b>Téléphone :</b> ${escapeHTML(m.phone || "-")}
+        </div>
+
+        <div class="line">
+          <b>Date de cotisation :</b> ${date}
+        </div>
+
+        <div class="line">
+          <b>Mois concerné :</b> ${escapeHTML(p.period)}
+        </div>
+
+        <div class="line">
+          <b>Montant :</b> ${money(p.amount)}
+        </div>
+
+        <div class="line">
+          <b>Moyen de paiement :</b>
+          ${escapeHTML(methods[p.method] || p.method)}
+        </div>
+
+        <div class="line">
+          <b>Date de validation :</b> ${validationDate}
+        </div>
+
+        <div class="line">
+          <b>Statut :</b> VALIDÉ
+        </div>
 
         <p class="thanks">
           Merci pour votre contribution au développement de Ouétomba.
         </p>
-        
-<div style="display:flex; justify-content:space-between; align-items:center; margin-top:30px; gap:20px;">
 
-  <div style="width:50%; text-align:center;">
-    <strong>Signature du Trésorier</strong>
-    <div style="border-bottom:1px solid #333; margin:45px 15px 5px;"></div>
-  </div>
+        <div class="signatures">
 
-  <div style="width:50%; text-align:center;">
-    <strong>Cachet de MUDEO</strong>
-    <img
-     src="https://mahikan-web.github.io/mudeo-tresorerie/MUDEO_cachet_tresorerie.png"
-      alt="Cachet MUDEO"
-      style="width:160px; height:auto; display:block; margin:10px auto;"
-    >
-  </div>
+          <div class="signature-box">
+            Signature du Trésorier
 
-</div>
+            <img
+              src="https://mahikan-web.github.io/mudeo-tresorerie/MUDEO_signature_tresorier.png"
+              alt="Signature du trésorier"
+            >
+          </div>
+
+          <div class="stamp-box">
+            Cachet de MUDEO
+
+            <img
+              src="https://mahikan-web.github.io/mudeo-tresorerie/MUDEO_cachet_tresorerie.png"
+              alt="Cachet MUDEO"
+            >
+          </div>
+
+        </div>
 
       </div>
+
       <script>
         window.onload = function(){
           window.print();
         };
       <\/script>
+
     </body>
     </html>
   `);
 
   printWindow.document.close();
 }
+
 
     async function validatePayment(id){
   if(!["administrateur","tresorier"].includes(currentUserRole)){
