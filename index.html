@@ -2051,48 +2051,206 @@ async function updateDashboard(){
 }
 
 
+
 async function exportCSV(){
-  const {data: payments, error} = await supabaseClient
-    .from("payments")
-    .select("member_id,period,amount,method,status")
-    .order("period", {ascending:false});
 
-  if(error){
-    alert("Erreur lors de l'export : " + error.message);
+  // Récupération des paiements
+  const {data: payments, error: paymentsError} =
+    await supabaseClient
+      .from("payments")
+      .select("member_id,period,payment_date,amount,method,status")
+      .order("period", {ascending:false});
+
+  // Récupération des membres
+  const {data: members, error: membersError} =
+    await supabaseClient
+      .from("members")
+      .select("id,full_name,phone");
+
+  // Récupération des dépenses
+  const {data: expenses, error: expensesError} =
+    await supabaseClient
+      .from("expenses")
+      .select("description,amount,expense_date")
+      .order("expense_date", {ascending:false});
+
+  // Récupération des dons en espèces
+  const {data: cashDonations, error: cashError} =
+    await supabaseClient
+      .from("cash_donations")
+      .select("donor_name,donation_date,amount,method,notes")
+      .order("donation_date", {ascending:false});
+
+  // Récupération des dons en nature
+  const {data: inKindDonations, error: inKindError} =
+    await supabaseClient
+      .from("in_kind_donations")
+      .select("donor_name,received_date,item_description,quantity,unit,estimated_unit_value,notes")
+      .order("received_date", {ascending:false});
+
+  if(
+    paymentsError || membersError || expensesError ||
+    cashError || inKindError
+  ){
+    console.error(
+      paymentsError || membersError || expensesError ||
+      cashError || inKindError
+    );
+    alert("Erreur lors de la récupération des données du rapport.");
     return;
   }
 
-  const {data: members, error: membersError} = await supabaseClient
-    .from("members")
-    .select("id,full_name,phone");
+  const paymentRows = payments || [];
+  const memberRows = members || [];
+  const expenseRows = expenses || [];
+  const cashRows = cashDonations || [];
+  const inKindRows = inKindDonations || [];
 
-  if(membersError){
-    alert("Erreur lors du chargement des membres : " + membersError.message);
-    return;
-  }
+  // Calcul des totaux
+  const validPayments = paymentRows.filter(
+    p => p.status === "validated"
+  );
 
-  const rows = [["Membre","Téléphone","Mois","Montant","Moyen","Statut"]];
-  (payments || []).forEach(p=>{
-    const m = (members || []).find(x=>x.id===p.member_id);
+  const pendingPayments = paymentRows.filter(
+    p => p.status === "pending"
+  );
+
+  const rejectedPayments = paymentRows.filter(
+    p => p.status === "rejected"
+  );
+
+  const cotisationTotal = validPayments.reduce(
+    (s,p) => s + Number(p.amount),0
+  );
+
+  const pendingTotal = pendingPayments.reduce(
+    (s,p) => s + Number(p.amount),0
+  );
+
+  const cashDonationTotal = cashRows.reduce(
+    (s,d) => s + Number(d.amount),0
+  );
+
+  const cashReceipts = cotisationTotal + cashDonationTotal;
+
+  const inKindTotal = inKindRows.reduce(
+    (s,d) => s + Number(d.quantity) * Number(d.estimated_unit_value),0
+  );
+
+  const expenseTotal = expenseRows.reduce(
+    (s,e) => s + Number(e.amount),0
+  );
+
+  const balance = cashReceipts - expenseTotal;
+
+  // Préparation du rapport CSV
+  const rows = [];
+
+  rows.push(["MUDEO - RAPPORT COMPLET DE TRESORERIE"]);
+  rows.push(["Date du rapport", new Date().toLocaleDateString("fr-FR")]);
+  rows.push([]);
+
+  rows.push(["SYNTHESE FINANCIERE"]);
+  rows.push(["Indicateur","Montant / Nombre"]);
+  rows.push(["Cotisations validées (FCFA)",cotisationTotal]);
+  rows.push(["Nombre de paiements validés",validPayments.length]);
+  rows.push(["Dons en espèces (FCFA)",cashDonationTotal]);
+  rows.push(["Total des recettes en espèces (FCFA)",cashReceipts]);
+  rows.push(["Valeur estimée des dons en nature (FCFA)",inKindTotal]);
+  rows.push(["Total des dépenses (FCFA)",expenseTotal]);
+  rows.push(["Solde disponible (FCFA)",balance]);
+  rows.push(["Nombre de paiements en attente",pendingPayments.length]);
+  rows.push(["Montant des paiements en attente (FCFA)",pendingTotal]);
+  rows.push(["Nombre de paiements rejetés",rejectedPayments.length]);
+
+  rows.push([]);
+  rows.push(["DETAIL DES COTISATIONS"]);
+  rows.push(["Membre","Téléphone","Période","Date de paiement","Montant (FCFA)","Moyen de paiement","Statut"]);
+
+  paymentRows.forEach(p=>{
+    const m = memberRows.find(x=>x.id === p.member_id);
+
     rows.push([
       m ? m.full_name : "Inconnu",
       m ? m.phone : "",
-      p.period,
-      p.amount,
-      p.method,
-      p.status
+      p.period || "",
+      p.payment_date || "",
+      Number(p.amount),
+      p.method || "",
+      p.status || ""
     ]);
   });
 
-  const csv="\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v ?? "").replace(/"/g,'""')+'"').join(";")).join("\n");
-  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;
-  a.download="rapport-mudeo.csv";
+  rows.push([]);
+  rows.push(["DETAIL DES DONS EN ESPECES"]);
+  rows.push(["Donateur","Date","Montant (FCFA)","Moyen de paiement","Observation"]);
+
+  cashRows.forEach(d=>{
+    rows.push([
+      d.donor_name,
+      d.donation_date,
+      Number(d.amount),
+      d.method,
+      d.notes || ""
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(["DETAIL DES DONS EN NATURE"]);
+  rows.push(["Donateur","Date","Bien reçu","Quantité","Unité","Valeur unitaire (FCFA)","Valeur totale estimée (FCFA)","Observation"]);
+
+  inKindRows.forEach(d=>{
+    rows.push([
+      d.donor_name,
+      d.received_date,
+      d.item_description,
+      Number(d.quantity),
+      d.unit,
+      Number(d.estimated_unit_value),
+      Number(d.quantity) * Number(d.estimated_unit_value),
+      d.notes || ""
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(["DETAIL DES DEPENSES"]);
+  rows.push(["Motif","Date","Montant (FCFA)"]);
+
+  expenseRows.forEach(e=>{
+    rows.push([
+      e.description,
+      e.expense_date,
+      Number(e.amount)
+    ]);
+  });
+
+  // Création du fichier CSV compatible avec Excel
+  const csv = "\uFEFF" + rows.map(r =>
+    r.map(v =>
+      '"' + String(v ?? "").replace(/"/g,'""') + '"'
+    ).join(";")
+  ).join("\r\n");
+
+  const blob = new Blob(
+    [csv],
+    {type:"text/csv;charset=utf-8"}
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = "MUDEO_rapport_complet_tresorerie.csv";
+
+  document.body.appendChild(a);
   a.click();
+  a.remove();
+
   URL.revokeObjectURL(url);
+
+  alert("Rapport complet de trésorerie exporté avec succès !");
 }
+
 async function deconnexion() {
   await supabaseClient.auth.signOut();
   currentUserRole = null;
