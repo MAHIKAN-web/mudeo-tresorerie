@@ -684,6 +684,19 @@ Total des dépenses
       Montant des paiements en attente
       <strong id="waitingAmount">0 FCFA</strong>
     </div>
+        
+<h3>Générer le rapport PDF officiel</h3>
+
+<label>Date de début</label>
+<input type="date" id="reportStartDate">
+
+<label>Date de fin</label>
+<input type="date" id="reportEndDate">
+
+<button class="action" type="button" onclick="exportPDFReport()">
+  Télécharger le rapport financier PDF
+</button>
+
 
     <button class="action" onclick="exportCSV()">
       Exporter les paiements (CSV)
@@ -697,8 +710,15 @@ Total des dépenses
 MUDEO – Trésorerie<br>
 Mutuelle de Développement de Ouétomba
 </footer>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const SUPABASE_URL = "https://oakgjopjeqdapqqacyxz.supabase.co";
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+
+      const SUPABASE_URL = "https://oakgjopjeqdapqqacyxz.supabase.co";
 
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_hB4kcRawwuAVVSO66ecBYA_U7CkCj7J";
 
@@ -2250,6 +2270,219 @@ async function exportCSV(){
 
   alert("Rapport complet de trésorerie exporté avec succès !");
 }
+      
+async function exportPDFReport() {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
+
+    const startDate = document.getElementById("reportStartDate").value;
+    const endDate = document.getElementById("reportEndDate").value;
+
+    if (startDate && endDate && startDate > endDate) {
+      alert("La date de début doit être antérieure à la date de fin.");
+      return;
+    }
+
+    const tables = [
+      { name: "payments", date: "payment_date" },
+      { name: "cash_donations", date: "donation_date" },
+      { name: "in_kind_donations", date: "received_date" },
+      { name: "expenses", date: "expense_date" }
+    ];
+
+    async function getData(table, dateField) {
+      let query = supabaseClient.from(table).select("*");
+
+      if (startDate) query = query.gte(dateField, startDate);
+      if (endDate) query = query.lte(dateField, endDate);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    }
+
+    const payments = await getData("payments", "payment_date");
+    const cashDonations = await getData("cash_donations", "donation_date");
+    const inKindDonations = await getData("in_kind_donations", "received_date");
+    const expenses = await getData("expenses", "expense_date");
+const { data: members, error: membersError } = await supabaseClient
+  .from("members")
+  .select("id, full_name");
+
+if (membersError) throw membersError;
+
+const memberNames = new Map(
+  (members || []).map(m => [m.id, m.full_name])
+);
+    const validated = payments.filter(p => p.status === "validated");
+    const pending = payments.filter(p => p.status === "pending");
+    const rejected = payments.filter(p => p.status === "rejected");
+
+    const sum = (rows, field = "amount") =>
+      rows.reduce((total, row) => total + Number(row[field] || 0), 0);
+
+    const cotisations = sum(validated);
+    const donsEspeces = sum(cashDonations);
+    const recettes = cotisations + donsEspeces;
+    const depenses = sum(expenses);
+    const solde = recettes - depenses;
+
+    const donsNature = inKindDonations.reduce(
+      (total, d) =>
+        total + Number(d.quantity || 0) *
+        Number(d.estimated_unit_value || 0), 0
+    );
+
+   
+try {
+  const response = await fetch("MUDEO_logo.png");
+
+  if (!response.ok) {
+    throw new Error("Logo MUDEO introuvable.");
+  }
+
+  const logoBlob = await response.blob();
+
+  const logoData = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Lecture du logo impossible."));
+    reader.readAsDataURL(logoBlob);
+  });
+
+  doc.addImage(logoData, "PNG", 89, 7, 32, 32);
+
+} catch (logoError) {
+  console.warn("Logo non chargé :", logoError);
+}
+
+doc.setFontSize(16);
+doc.text("MUDEO", 105, 49, { align: "center" });
+
+doc.setFontSize(11);
+doc.text("Mutuelle de Développement de Ouétomba", 105, 56, {
+  align: "center"
+});
+
+doc.setFontSize(14);
+doc.text("RAPPORT FINANCIER", 105, 67, { align: "center" });
+
+doc.setFontSize(10);
+const periode = startDate || endDate
+  ? `Période : ${startDate || "..."} au ${endDate || "..."}`
+  : "Période : toutes les dates";
+
+doc.text(periode, 14, 76);
+
+
+    doc.autoTable({
+     startY: 83,
+      head: [["Désignation", "Montant (FCFA)"]],
+      body: [
+        ["Cotisations validées", cotisations.toLocaleString("fr-FR")],
+        ["Dons en espèces", donsEspeces.toLocaleString("fr-FR")],
+        ["Total des recettes", recettes.toLocaleString("fr-FR")],
+        ["Dépenses", depenses.toLocaleString("fr-FR")],
+        ["Solde disponible", solde.toLocaleString("fr-FR")],
+        ["Dons en nature (valeur estimée)", donsNature.toLocaleString("fr-FR")]
+      ],
+      theme: "grid"
+    });
+
+    let y = doc.lastAutoTable.finalY + 10;
+
+    doc.setFontSize(12);
+    doc.text("Situation des cotisations", 14, y);
+
+    doc.autoTable({
+      startY: y + 3,
+      head: [["Statut", "Nombre", "Montant (FCFA)"]],
+      body: [
+        ["Validés (seuls comptés en recettes)", validated.length,
+          cotisations.toLocaleString("fr-FR")],
+        ["En attente (non comptés)", pending.length,
+          sum(pending).toLocaleString("fr-FR")],
+        ["Rejetés (non comptés)", rejected.length,
+          sum(rejected).toLocaleString("fr-FR")]
+      ],
+      theme: "grid"
+    });
+
+    y = doc.lastAutoTable.finalY + 10;
+
+    function addSection(title, headers, rows) {
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(12);
+      doc.text(title, 14, y);
+      doc.autoTable({
+        startY: y + 3,
+        head: [headers],
+        body: rows.length ? rows : [["Aucune donnée", ""]],
+        theme: "grid",
+        styles: { fontSize: 8 }
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+
+    addSection("Détail des cotisations validées",
+      ["Membre", "Date", "Montant (FCFA)"],
+      validated.map(p => [
+       memberNames.get(p.member_id) || "Membre inconnu",
+        p.payment_date || "",
+        Number(p.amount || 0).toLocaleString("fr-FR")
+      ])
+    );
+
+    addSection("Détail des dons en espèces",
+      ["Donateur", "Date", "Montant (FCFA)"],
+      cashDonations.map(d => [
+        d.donor_name || "",
+        d.donation_date || "",
+        Number(d.amount || 0).toLocaleString("fr-FR")
+      ])
+    );
+
+    addSection("Détail des dons en nature",
+      ["Donateur", "Date", "Désignation", "Quantité"],
+      inKindDonations.map(d => [
+        d.donor_name || "",
+        d.received_date || "",
+        d.item_description || "",
+        `${d.quantity || 0} ${d.unit || ""}`
+      ])
+    );
+
+    addSection("Détail des dépenses",
+      ["Désignation", "Date", "Montant (FCFA)"],
+      expenses.map(e => [
+        e.description || "",
+        e.expense_date || "",
+        Number(e.amount || 0).toLocaleString("fr-FR")
+      ])
+    );
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(
+        `MUDEO - Rapport financier - Page ${i}/${pageCount}`,
+        105, 290, { align: "center" }
+      );
+    }
+
+    doc.save("MUDEO_Rapport_Financier.pdf");
+
+  } catch (error) {
+    console.error("Erreur génération PDF :", error);
+    alert("Impossible de générer le PDF : " + error.message);
+  }
+}
+
 
 async function deconnexion() {
   await supabaseClient.auth.signOut();
