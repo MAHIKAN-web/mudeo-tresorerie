@@ -242,6 +242,7 @@ footer{text-align:center;padding:25px;color:#64748b}
 <button id="validationMenu" onclick="showPage('validation',this)">Validation</button>
 <button onclick="showPage('expenses',this)">Dépenses</button>
 <button onclick="showPage('cashDonations',this)">Dons en espèces</button>
+<button onclick="showPage('inKindDonations',this)">Dons en nature</button>
 <button onclick="showPage('reports',this)">Rapports</button>
 </nav>
 <div id="memberArea" style="display:none;max-width:850px;margin:auto;padding:15px;">
@@ -447,9 +448,98 @@ Total des dépenses
     </div>
   </div>
 
+
+</section>
+
+<section id="inKindDonations" class="page">
+
+  <div class="card">
+    <h2>Enregistrer un don en nature</h2>
+
+    <form id="inKindDonationForm">
+
+      <label>Nom du donateur *</label>
+      <input
+        id="inKindDonorName"
+        type="text"
+        required
+        placeholder="Nom et prénoms du donateur"
+      >
+
+      <label>Date de réception *</label>
+      <input
+        id="inKindReceivedDate"
+        type="date"
+        required
+      >
+
+      <label>Désignation du bien *</label>
+      <input
+        id="inKindDescription"
+        type="text"
+        required
+        placeholder="Exemple : Chaises, sacs de riz, ordinateurs"
+      >
+
+      <label>Quantité *</label>
+      <input
+        id="inKindQuantity"
+        type="number"
+        min="0.01"
+        step="0.01"
+        required
+        placeholder="Quantité reçue"
+      >
+
+      <label>Unité *</label>
+      <input
+        id="inKindUnit"
+        type="text"
+        required
+        placeholder="Exemple : chaise, sac, carton, unité"
+      >
+
+      <label>Valeur estimée unitaire (FCFA) *</label>
+      <input
+        id="inKindUnitValue"
+        type="number"
+        min="0"
+        step="1"
+        required
+        placeholder="Valeur estimée d'une unité"
+      >
+
+      <label>Observation</label>
+      <input
+        id="inKindNotes"
+        type="text"
+        placeholder="Précision facultative"
+      >
+
+      <button class="action" type="submit">
+        Enregistrer le don en nature
+      </button>
+
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Liste des dons en nature</h2>
+
+    <div class="stat">
+      Valeur totale estimée
+      <strong id="totalInKindDonations">0 FCFA</strong>
+    </div>
+
+    <div id="inKindDonationList">
+      Chargement des dons...
+    </div>
+  </div>
+
 </section>
 
 <section id="members" class="page">
+
 
 
 <div class="card">
@@ -753,6 +843,105 @@ document.getElementById("cashDonationForm").addEventListener(
 );
 
 
+async function renderInKindDonations(){
+
+  const list = document.getElementById("inKindDonationList");
+  const totalElement = document.getElementById("totalInKindDonations");
+
+  const {data: donations, error} = await supabaseClient
+    .from("in_kind_donations")
+    .select("id,donor_name,received_date,item_description,quantity,unit,estimated_unit_value,notes")
+    .order("received_date", {ascending:false});
+
+  if(error){
+    console.error(error);
+    list.textContent = "Erreur de chargement : " + error.message;
+    return;
+  }
+
+  const rows = donations || [];
+
+  const total = rows.reduce(
+    (sum,d) => sum + Number(d.quantity) * Number(d.estimated_unit_value),0
+  );
+
+  totalElement.textContent = money(total);
+
+  list.innerHTML = rows.length ? rows.map(d=>{
+    const itemTotal = Number(d.quantity) * Number(d.estimated_unit_value);
+
+    return `
+      <div class="item">
+        <strong>${escapeHTML(d.item_description)}</strong><br>
+        Donateur : ${escapeHTML(d.donor_name)}<br>
+        Date : ${escapeHTML(d.received_date)}<br>
+        Quantité : ${escapeHTML(String(d.quantity))} ${escapeHTML(d.unit)}<br>
+        Valeur unitaire : ${money(d.estimated_unit_value)}<br>
+        Valeur totale estimée : ${money(itemTotal)}<br>
+        ${d.notes ? `Observation : ${escapeHTML(d.notes)}<br>` : ""}
+      </div>
+    `;
+  }).join("") : "<p>Aucun don en nature enregistré.</p>";
+}
+
+
+document.getElementById("inKindDonationForm").addEventListener(
+  "submit",
+  async function(e){
+
+    e.preventDefault();
+
+    const donor_name = document.getElementById("inKindDonorName").value.trim();
+    const received_date = document.getElementById("inKindReceivedDate").value;
+    const item_description = document.getElementById("inKindDescription").value.trim();
+    const quantity = Number(document.getElementById("inKindQuantity").value);
+    const unit = document.getElementById("inKindUnit").value.trim();
+    const estimated_unit_value = Number(document.getElementById("inKindUnitValue").value);
+    const notes = document.getElementById("inKindNotes").value.trim();
+
+    if(
+      !donor_name || !received_date || !item_description ||
+      !Number.isFinite(quantity) || quantity <= 0 ||
+      !unit || !Number.isFinite(estimated_unit_value) ||
+      estimated_unit_value < 0
+    ){
+      alert("Vérifie les informations du don en nature.");
+      return;
+    }
+
+    const {data:{user}, error:userError} =
+      await supabaseClient.auth.getUser();
+
+    if(userError || !user){
+      alert("Utilisateur non connecté.");
+      return;
+    }
+
+    const {error} = await supabaseClient
+      .from("in_kind_donations")
+      .insert({
+        donor_name,
+        received_date,
+        item_description,
+        quantity,
+        unit,
+        estimated_unit_value,
+        notes: notes || null,
+        recorded_by: user.id
+      });
+
+    if(error){
+      alert("Erreur d'enregistrement : " + error.message);
+      return;
+    }
+
+    alert("Don en nature enregistré avec succès !");
+    document.getElementById("inKindDonationForm").reset();
+
+    await renderInKindDonations();
+  }
+);
+
 async function editExpense(id){
   if(currentUserRole !== "administrateur"){
     alert("Seul l'administrateur peut modifier une dépense.");
@@ -868,6 +1057,7 @@ function showPage(id, button) {
   "validation",
   "expenses",
   "cashDonations",
+ "inKindDonations",
   "reports"
 ];
 
@@ -897,12 +1087,14 @@ function showPage(id, button) {
     button.classList.add("active");
   }
 
-  // Actualiser les données
+   // Actualiser les données
   if (id === "validation") renderPayments();
   if (id === "members") renderMembers();
   if (id === "expenses") renderExpenses();
-}
+  if (id === "cashDonations") renderCashDonations();
+    if (id === "inKindDonations") renderInKindDonations();
 
+}
 
 
 function escapeHTML(value){
@@ -1986,6 +2178,7 @@ document.querySelector("main").style.display = "block";
   await renderPayments();
   await renderExpenses();
   await renderCashDonations();
+  await renderInKindDonations();
 }
       // CHANGEMENT OBLIGATOIRE DU MOT DE PASSE
 document.getElementById("passwordChangeForm")
