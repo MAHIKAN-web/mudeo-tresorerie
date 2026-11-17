@@ -641,68 +641,132 @@ Total des dépenses
 </section>
 
 
+
 <section id="reports" class="page">
+
   <div class="card">
-    <h2>Rapport de trésorerie</h2>
 
-    <div class="stat">
-      Total des cotisations validées
-      <strong id="reportRevenue">0 FCFA</strong>
+    <div style="overflow-x:auto;">
+      <table style="
+        width:100%;
+        border-collapse:collapse;
+        border:1px solid #333;
+        font-size:13px;
+        background:white;
+      ">
+
+        <thead>
+          <tr>
+            <th colspan="2" style="
+              border:1px solid #333;
+              padding:8px;
+              text-align:center;
+              font-size:15px;
+              color:#14532d;
+            ">
+              Rapport de trésorerie
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Total des cotisations validées
+            </td>
+            <td id="reportRevenue" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Nombre de paiements validés
+            </td>
+            <td id="validatedCount" style="border:1px solid #333;padding:6px;text-align:center;">
+              0
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Dons en espèces
+            </td>
+            <td id="reportCashDonations" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Total des recettes en espèces
+            </td>
+            <td id="reportCashReceipts" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Valeur estimée des dons en nature
+            </td>
+            <td id="reportInKindDonations" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Total des dépenses
+            </td>
+            <td id="reportExpenses" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Solde disponible
+            </td>
+            <td id="reportBalance" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+          <tr>
+            <td style="border:1px solid #333;padding:6px;">
+              Montant des paiements en attente
+            </td>
+            <td id="waitingAmount" style="border:1px solid #333;padding:6px;text-align:center;">
+              0 FCFA
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
     </div>
 
-    <div class="stat">
-      Nombre de paiements validés
-      <strong id="validatedCount">0</strong>
-    </div>
+    <h3>Générer le rapport PDF officiel</h3>
 
-    <div class="stat">
-      Dons en espèces
-      <strong id="reportCashDonations">0 FCFA</strong>
-    </div>
+    <label>Date de début</label>
+    <input type="date" id="reportStartDate">
 
-    <div class="stat">
-      Total des recettes en espèces
-      <strong id="reportCashReceipts">0 FCFA</strong>
-    </div>
+    <label>Date de fin</label>
+    <input type="date" id="reportEndDate">
 
-    <div class="stat">
-      Valeur estimée des dons en nature
-      <strong id="reportInKindDonations">0 FCFA</strong>
-    </div>
-
-    <div class="stat">
-      Total des dépenses
-      <strong id="reportExpenses">0 FCFA</strong>
-    </div>
-
-    <div class="stat">
-      Solde disponible
-      <strong id="reportBalance">0 FCFA</strong>
-    </div>
-
-    <div class="stat">
-      Montant des paiements en attente
-      <strong id="waitingAmount">0 FCFA</strong>
-    </div>
-        
-<h3>Générer le rapport PDF officiel</h3>
-
-<label>Date de début</label>
-<input type="date" id="reportStartDate">
-
-<label>Date de fin</label>
-<input type="date" id="reportEndDate">
-
-<button class="action" type="button" onclick="exportPDFReport()">
-  Télécharger le rapport financier PDF
-</button>
-
+    <button class="action" type="button" onclick="exportPDFReport()">
+      Télécharger le rapport financier PDF
+    </button>
 
     <button class="action" onclick="exportCSV()">
       Exporter les paiements (CSV)
     </button>
+
   </div>
+
 </section>
+
 
 </main>
 
