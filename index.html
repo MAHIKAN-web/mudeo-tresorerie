@@ -267,6 +267,7 @@ footer{text-align:center;padding:25px;color:#64748b}
 </div>
 <main>
 
+
 <section id="home" class="page active">
   <div class="card">
     <h2>Tableau de bord</h2>
@@ -277,8 +278,18 @@ footer{text-align:center;padding:25px;color:#64748b}
     </div>
 
     <div class="stat">
-      Recettes validées
+      Cotisations validées
       <strong id="totalRevenue">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Dons en espèces
+      <strong id="dashboardDonations">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Total des recettes en espèces
+      <strong id="dashboardCashReceipts">0 FCFA</strong>
     </div>
 
     <div class="stat">
@@ -309,10 +320,11 @@ footer{text-align:center;padding:25px;color:#64748b}
 
   <div class="card">
     <h2>Bienvenue dans MUDEO</h2>
-    <p>Cette application permet de suivre les membres, les cotisations et les recettes de la mutuelle.</p>
+    <p>Cette application permet de suivre les membres, les cotisations, les dons et les recettes de la mutuelle.</p>
     <p class="small">Les paiements doivent être validés par le trésorier avant d'être comptabilisés.</p>
   </div>
 </section>
+
 <section id="expenses" class="page">
 
 <div class="card">
@@ -1686,6 +1698,7 @@ async function rejectPayment(id){
   await updateDashboard();
 }
 
+
 async function updateDashboard(){
 
   const {count: totalMembers,error: membersError} =
@@ -1703,8 +1716,13 @@ async function updateDashboard(){
       .from("expenses")
       .select("amount");
 
-  if(membersError || paymentsError || expensesError){
-    console.error(membersError || paymentsError || expensesError);
+  const {data: donations,error: donationsError} =
+    await supabaseClient
+      .from("cash_donations")
+      .select("amount");
+
+  if(membersError || paymentsError || expensesError || donationsError){
+    console.error(membersError || paymentsError || expensesError || donationsError);
     alert("Erreur de chargement du tableau de bord.");
     return;
   }
@@ -1725,17 +1743,29 @@ async function updateDashboard(){
     (s,p) => s + Number(p.amount),0
   );
 
+  const donationTotal = (donations || []).reduce(
+    (s,d) => s + Number(d.amount),0
+  );
+
+  const totalCashReceipts = revenue + donationTotal;
+
   const expenseTotal = (expenses || []).reduce(
     (s,e) => s + Number(e.amount),0
   );
 
-  const balance = revenue - expenseTotal;
+  const balance = totalCashReceipts - expenseTotal;
 
   document.getElementById("totalMembers").textContent =
     totalMembers || 0;
 
   document.getElementById("totalRevenue").textContent =
     money(revenue);
+
+  document.getElementById("dashboardDonations").textContent =
+    money(donationTotal);
+
+  document.getElementById("dashboardCashReceipts").textContent =
+    money(totalCashReceipts);
 
   document.getElementById("pendingPayments").textContent =
     pending.length;
@@ -1749,15 +1779,14 @@ async function updateDashboard(){
   document.getElementById("waitingAmount").textContent =
     money(waiting);
 
-  // Nouveaux indicateurs du tableau de bord
   const dashboardExpenses = document.getElementById("dashboardExpenses");
-if (dashboardExpenses) dashboardExpenses.textContent = money(expenseTotal);
+  if(dashboardExpenses) dashboardExpenses.textContent = money(expenseTotal);
 
-const dashboardBalance = document.getElementById("dashboardBalance");
-if (dashboardBalance) dashboardBalance.textContent = money(balance);
+  const dashboardBalance = document.getElementById("dashboardBalance");
+  if(dashboardBalance) dashboardBalance.textContent = money(balance);
 
-const dashboardWaitingAmount = document.getElementById("dashboardWaitingAmount");
-if (dashboardWaitingAmount) dashboardWaitingAmount.textContent = money(waiting);
+  const dashboardWaitingAmount = document.getElementById("dashboardWaitingAmount");
+  if(dashboardWaitingAmount) dashboardWaitingAmount.textContent = money(waiting);
 }
 
 
