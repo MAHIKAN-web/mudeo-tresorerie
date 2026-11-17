@@ -241,6 +241,7 @@ footer{text-align:center;padding:25px;color:#64748b}
 <button onclick="showPage('payments',this)">Paiements</button>
 <button id="validationMenu" onclick="showPage('validation',this)">Validation</button>
 <button onclick="showPage('expenses',this)">Dépenses</button>
+<button onclick="showPage('cashDonations',this)">Dons en espèces</button>
 <button onclick="showPage('reports',this)">Rapports</button>
 </nav>
 <div id="memberArea" style="display:none;max-width:850px;margin:auto;padding:15px;">
@@ -361,8 +362,83 @@ Total des dépenses
 <div id="expenseList"></div>
 </div>
 
+
 </section>
+
+<section id="cashDonations" class="page">
+
+  <div class="card">
+    <h2>Enregistrer un don en espèces</h2>
+
+    <form id="cashDonationForm">
+
+      <label>Nom du donateur *</label>
+      <input
+        id="donorName"
+        type="text"
+        required
+        placeholder="Nom et prénoms du donateur"
+      >
+
+      <label>Date du don *</label>
+      <input
+        id="donationDate"
+        type="date"
+        required
+      >
+
+      <label>Montant du don (FCFA) *</label>
+      <input
+        id="donationAmount"
+        type="number"
+        min="1"
+        step="1"
+        required
+        placeholder="Montant en FCFA"
+      >
+
+      <label>Moyen de paiement *</label>
+      <select id="donationMethod" required>
+        <option value="">Choisir</option>
+        <option value="cash">Espèces</option>
+        <option value="wave">Wave</option>
+        <option value="orange_money">Orange Money</option>
+        <option value="mtn_money">MTN Money</option>
+        <option value="moov_money">Moov Money</option>
+        <option value="bank">Virement bancaire</option>
+      </select>
+
+      <label>Observation</label>
+      <input
+        id="donationNotes"
+        type="text"
+        placeholder="Motif ou précision (facultatif)"
+      >
+
+      <button class="action" type="submit">
+        Enregistrer le don
+      </button>
+
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Liste des dons en espèces</h2>
+
+    <div class="stat">
+      Total des dons reçus
+      <strong id="totalCashDonations">0 FCFA</strong>
+    </div>
+
+    <div id="cashDonationList">
+      Chargement des dons...
+    </div>
+  </div>
+
+</section>
+
 <section id="members" class="page">
+
 
 <div class="card">
   <h2>Enregistrer un membre</h2>
@@ -573,6 +649,97 @@ document.getElementById("expenseForm").addEventListener(
   }
 );
 
+async function renderCashDonations(){
+
+  const list = document.getElementById("cashDonationList");
+  const totalElement = document.getElementById("totalCashDonations");
+
+  const {data: donations, error} = await supabaseClient
+    .from("cash_donations")
+    .select("id,donor_name,donation_date,amount,method,notes")
+    .order("donation_date", {ascending:false});
+
+  if(error){
+    console.error(error);
+    list.textContent = "Erreur de chargement : " + error.message;
+    return;
+  }
+
+  const rows = donations || [];
+  const total = rows.reduce((sum,d)=>sum + Number(d.amount),0);
+
+  totalElement.textContent = money(total);
+
+  const methods = {
+    cash: "Espèces",
+    wave: "Wave",
+    orange_money: "Orange Money",
+    mtn_money: "MTN Money",
+    moov_money: "Moov Money",
+    bank: "Virement bancaire"
+  };
+
+  list.innerHTML = rows.length ? rows.map(d=>`
+    <div class="item">
+      <strong>${escapeHTML(d.donor_name)}</strong><br>
+      Montant : ${money(d.amount)}<br>
+      Date : ${escapeHTML(d.donation_date)}<br>
+      Paiement : ${escapeHTML(methods[d.method] || d.method)}<br>
+      ${d.notes ? `Observation : ${escapeHTML(d.notes)}<br>` : ""}
+    </div>
+  `).join("") : "<p>Aucun don enregistré.</p>";
+}
+
+
+document.getElementById("cashDonationForm").addEventListener(
+  "submit",
+  async function(e){
+
+    e.preventDefault();
+
+    const donor_name = document.getElementById("donorName").value.trim();
+    const donation_date = document.getElementById("donationDate").value;
+    const amount = Number(document.getElementById("donationAmount").value);
+    const method = document.getElementById("donationMethod").value;
+    const notes = document.getElementById("donationNotes").value.trim();
+
+    if(!donor_name || !donation_date || !Number.isInteger(amount) || amount <= 0 || !method){
+      alert("Vérifie les informations du don.");
+      return;
+    }
+
+    const {data:{user}, error:userError} =
+      await supabaseClient.auth.getUser();
+
+    if(userError || !user){
+      alert("Utilisateur non connecté.");
+      return;
+    }
+
+    const {error} = await supabaseClient
+      .from("cash_donations")
+      .insert({
+        donor_name,
+        donation_date,
+        amount,
+        method,
+        notes: notes || null,
+        recorded_by: user.id
+      });
+
+    if(error){
+      alert("Erreur d'enregistrement : " + error.message);
+      return;
+    }
+
+    alert("Don enregistré avec succès !");
+    document.getElementById("cashDonationForm").reset();
+
+    await renderCashDonations();
+    await updateDashboard();
+  }
+);
+
 
 async function editExpense(id){
   if(currentUserRole !== "administrateur"){
@@ -682,14 +849,15 @@ function showPage(id, button) {
   }
 
   // Rubriques autorisées
-  const pagesAutorisees = [
-    "home",
-    "members",
-    "payments",
-    "validation",
-    "expenses",
-    "reports"
-  ];
+ const pagesAutorisees = [
+  "home",
+  "members",
+  "payments",
+  "validation",
+  "expenses",
+  "cashDonations",
+  "reports"
+];
 
   if (!pagesAutorisees.includes(id)) {
     alert("Rubrique non autorisée.");
@@ -1783,11 +1951,12 @@ document.querySelector("main").style.display = "block";
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appContent").style.display = "block";
 
-  await renderPaymentForm();
+   await renderPaymentForm();
   await updateDashboard();
   await renderMembers();
   await renderPayments();
   await renderExpenses();
+  await renderCashDonations();
 }
       // CHANGEMENT OBLIGATOIRE DU MOT DE PASSE
 document.getElementById("passwordChangeForm")
