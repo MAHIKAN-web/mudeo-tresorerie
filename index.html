@@ -640,17 +640,55 @@ Total des dépenses
 </div>
 </section>
 
+
 <section id="reports" class="page">
-<div class="card">
-<h2>Rapport de trésorerie</h2>
-<div class="stat">Total encaissé
-<strong id="reportRevenue">0 FCFA</strong></div>
-<div class="stat">Nombre de paiements validés
-<strong id="validatedCount">0</strong></div>
-<div class="stat">Montant en attente
-<strong id="waitingAmount">0 FCFA</strong></div>
-<button class="action" onclick="exportCSV()">Exporter les paiements (CSV)</button>
-</div>
+  <div class="card">
+    <h2>Rapport de trésorerie</h2>
+
+    <div class="stat">
+      Total des cotisations validées
+      <strong id="reportRevenue">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Nombre de paiements validés
+      <strong id="validatedCount">0</strong>
+    </div>
+
+    <div class="stat">
+      Dons en espèces
+      <strong id="reportCashDonations">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Total des recettes en espèces
+      <strong id="reportCashReceipts">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Valeur estimée des dons en nature
+      <strong id="reportInKindDonations">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Total des dépenses
+      <strong id="reportExpenses">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Solde disponible
+      <strong id="reportBalance">0 FCFA</strong>
+    </div>
+
+    <div class="stat">
+      Montant des paiements en attente
+      <strong id="waitingAmount">0 FCFA</strong>
+    </div>
+
+    <button class="action" onclick="exportCSV()">
+      Exporter les paiements (CSV)
+    </button>
+  </div>
 </section>
 
 </main>
@@ -1891,6 +1929,7 @@ async function rejectPayment(id){
 }
 
 
+
 async function updateDashboard(){
 
   const {count: totalMembers,error: membersError} =
@@ -1908,13 +1947,21 @@ async function updateDashboard(){
       .from("expenses")
       .select("amount");
 
-  const {data: donations,error: donationsError} =
+  const {data: cashDonations,error: cashError} =
     await supabaseClient
       .from("cash_donations")
       .select("amount");
 
-  if(membersError || paymentsError || expensesError || donationsError){
-    console.error(membersError || paymentsError || expensesError || donationsError);
+  const {data: inKindDonations,error: inKindError} =
+    await supabaseClient
+      .from("in_kind_donations")
+      .select("quantity,estimated_unit_value");
+
+  if(membersError || paymentsError || expensesError || cashError || inKindError){
+    console.error(
+      membersError || paymentsError || expensesError ||
+      cashError || inKindError
+    );
     alert("Erreur de chargement du tableau de bord.");
     return;
   }
@@ -1935,11 +1982,15 @@ async function updateDashboard(){
     (s,p) => s + Number(p.amount),0
   );
 
-  const donationTotal = (donations || []).reduce(
+  const donationTotal = (cashDonations || []).reduce(
     (s,d) => s + Number(d.amount),0
   );
 
   const totalCashReceipts = revenue + donationTotal;
+
+  const inKindTotal = (inKindDonations || []).reduce(
+    (s,d) => s + Number(d.quantity) * Number(d.estimated_unit_value),0
+  );
 
   const expenseTotal = (expenses || []).reduce(
     (s,e) => s + Number(e.amount),0
@@ -1967,6 +2018,24 @@ async function updateDashboard(){
 
   document.getElementById("validatedCount").textContent =
     valid.length;
+
+  document.getElementById("waitingAmount").textContent =
+    money(waiting);
+
+  document.getElementById("reportCashDonations").textContent =
+    money(donationTotal);
+
+  document.getElementById("reportCashReceipts").textContent =
+    money(totalCashReceipts);
+
+  document.getElementById("reportInKindDonations").textContent =
+    money(inKindTotal);
+
+  document.getElementById("reportExpenses").textContent =
+    money(expenseTotal);
+
+  document.getElementById("reportBalance").textContent =
+    money(balance);
 
   document.getElementById("waitingAmount").textContent =
     money(waiting);
