@@ -611,7 +611,6 @@ Total des dépenses
   required
 >
 
-
 <label>Montant (FCFA) *</label>
 <input id="paymentAmount" type="number" min="1" value="5000" required>
 
@@ -639,8 +638,6 @@ Total des dépenses
 <div id="paymentList"></div>
 </div>
 </section>
-
-
 
 <section id="reports" class="page">
 
@@ -1988,7 +1985,6 @@ async function downloadReceipt(id){
   await renderExpenses();
   await updateDashboard();
 }
-
 
 async function rejectPayment(id){
   if(!["administrateur","tresorier"].includes(currentUserRole)){
